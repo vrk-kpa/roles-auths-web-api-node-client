@@ -1,0 +1,15 @@
+{
+  "name": "web-api-node-client",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vrk-kpa/roles-auths-web-api-node-client.git"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.3",
+    "express": "^4.10.8",
+    "moment": "2.11.2",
+    "request": "^2.79.0"
+  }
+}
