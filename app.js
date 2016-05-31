@@ -29,9 +29,9 @@
 
 WEB_API_HOSTNAME = 'localhost';
 WEB_API_PORT = 8102;
-CLIENT_ID = '[PUT_HERE_CLIENT_ID]';
-CLIENT_SECRET = '[PUT_HERE_CLIENT_SECRET]';
-API_OAUTH_SECRET = '[PUT_HERE_OAUTH_SECRET]';
+CLIENT_ID = '42bbe569';
+CLIENT_SECRET = '3ba56df8-88b8-4805-9b04-2f8e7a61ae8f';
+API_OAUTH_SECRET = 'badb-abe4-cafe';
 CALLBACK_URI_HPA = encodeURI('http://localhost:9999/callback/hpa');
 CALLBACK_URI_YPA = encodeURI('http://localhost:9999/callback/ypa');
 HETU_HPA = '010180-9026';
@@ -94,7 +94,7 @@ function handleReqistration(mode, request, response) {
                 try {
                     var data = JSON.parse(body);
                     sessionId = data.sessionId;
-                    var authorizeUrl = 'http://' + WEB_API_HOSTNAME + ':' + WEB_API_PORT + '/oauth/authorize?client_id=' +  CLIENT_ID + 't&response_type=code&redirect_uri=' + callbackUri + '&user=' + data.userId;
+                    var authorizeUrl = 'http://' + WEB_API_HOSTNAME + ':' + WEB_API_PORT + '/oauth/authorize?client_id=' +  CLIENT_ID + '&response_type=code&redirect_uri=' + callbackUri + '&user=' + data.userId;
                     console.log("Got sessionId=" + sessionId);
                     console.log('Redirecting user-agent to: ' + authorizeUrl);
                     response.writeHead(302, {
@@ -191,13 +191,15 @@ function basicAuthorizationHeader(clientId, clientSecret) {
 
 function getDelegate(accessToken) {
     var resourceUrl = '/service/hpa/api/delegate/' + sessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+    var checksumHeaderValue = xAuthorizationHeader(resourceUrl);
     console.log('Get ' + resourceUrl);
     var options = {
         method: 'GET',
         hostname: WEB_API_HOSTNAME,
         port: WEB_API_PORT,
         headers: {
-            'Authorization': 'Bearer ' + accessToken
+            'Authorization': 'Bearer ' + accessToken,
+            'X-AsiointivaltuudetAuthorization': checksumHeaderValue
         },
         path: resourceUrl
     };
@@ -211,6 +213,7 @@ function getDelegate(accessToken) {
         });
 
         res.on('end', function() {
+            console.log(body);
             var data = JSON.parse(body);
             console.log("Response from " + resourceUrl + ': ' + body);
         });
@@ -262,13 +265,15 @@ function testCallingUnauthorized(accessToken) {
 
 function getRoles(accessToken) {
     var resourceUrl = '/service/ypa/api/organizationRoles/' + sessionId + '/123456-1' + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+    var checksumHeaderValue = xAuthorizationHeader(resourceUrl);
     console.log('Get ' + resourceUrl);
     var options = {
         method: 'GET',
         hostname: WEB_API_HOSTNAME,
         port: WEB_API_PORT,
         headers: {
-            'Authorization': 'Bearer ' + accessToken
+            'Authorization': 'Bearer ' + accessToken,
+            'X-AsiointivaltuudetAuthorization': checksumHeaderValue
         },
         path: resourceUrl
     };
