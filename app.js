@@ -216,6 +216,49 @@ function getDelegate(accessToken) {
             console.log(body);
             var data = JSON.parse(body);
             console.log("Response from " + resourceUrl + ': ' + body);
+            var i = 0;
+            data.forEach((principal) => {
+                getAuthorization(accessToken, principal.personId);
+            });
+        });
+
+    });
+
+    req.on('error', (e) => {
+        console.log(`problem with request: ${e.message}`);
+    });
+
+    req.end();
+}
+
+
+function getAuthorization(accessToken, principalId) {
+    var resourceUrl = '/service/hpa/api/authorization/' + sessionId + '/' + principalId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+    var checksumHeaderValue = xAuthorizationHeader(resourceUrl);
+    console.log('Get ' + resourceUrl);
+    var options = {
+        method: 'GET',
+        hostname: WEB_API_HOSTNAME,
+        port: WEB_API_PORT,
+        headers: {
+            'Authorization': 'Bearer ' + accessToken,
+            'X-AsiointivaltuudetAuthorization': checksumHeaderValue
+        },
+        path: resourceUrl
+    };
+
+    var req = http.request(options, function(res) {
+        var body = '';
+        res.setEncoding('utf8');
+
+        res.on('data', function(chunk) {
+            body += chunk;
+        });
+
+        res.on('end', function() {
+            console.log(body);
+            var data = JSON.parse(body);
+            console.log("Response from " + resourceUrl + ': ' + body);
         });
 
     });
