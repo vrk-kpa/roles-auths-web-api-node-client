@@ -20,7 +20,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
- var http = require("http"),
+var http = require("http"),
     url = require("url"),
     crypto = require("crypto"),
     moment = require("moment"),
@@ -38,7 +38,6 @@ HETU_HPA = '010180-9026';
 HETU_YPA = '010180-9026';
 
 sessionId = '';
-principalId = '';
 
 http.createServer(function(request, response) {
     if (request.url.substring(0, 13) === '/callback/hpa') {
@@ -94,7 +93,7 @@ function handleReqistration(mode, request, response) {
                 try {
                     var data = JSON.parse(body);
                     sessionId = data.sessionId;
-                    var authorizeUrl = 'http://' + WEB_API_HOSTNAME + ':' + WEB_API_PORT + '/oauth/authorize?client_id=' +  CLIENT_ID + '&response_type=code&redirect_uri=' + callbackUri + '&user=' + data.userId;
+                    var authorizeUrl = 'http://' + WEB_API_HOSTNAME + ':' + WEB_API_PORT + '/oauth/authorize?client_id=' + CLIENT_ID + '&response_type=code&redirect_uri=' + callbackUri + '&user=' + data.userId;
                     console.log("Got sessionId=" + sessionId);
                     console.log('Redirecting user-agent to: ' + authorizeUrl);
                     response.writeHead(302, {
@@ -132,55 +131,67 @@ function handleHpaCallback(request, response) {
     var urlParts = url.parse(request.url, true);
     console.log('OAuth autorization endpoint returned code: ' + urlParts.query.code);
     response.end();
-    changeCodeToToken(urlParts.query.code, CALLBACK_URI_HPA, getDelegate);
+
+    changeCodeToToken(urlParts.query.code, CALLBACK_URI_HPA)
+    .then(getDelegate)
+    .then((authArgs) => {
+        for (var i = 0; i < authArgs.principals.length; i++) {
+            getAuthorization(authArgs.accessToken, authArgs.principals[i].personId);
+        }
+    });
 }
 
 function handleYpaCallback(request, response) {
     var urlParts = url.parse(request.url, true);
     console.log('OAuth autorization endpoint returned code: ' + urlParts.query.code);
     response.end();
-    changeCodeToToken(urlParts.query.code, CALLBACK_URI_YPA, getRoles);
+    changeCodeToToken(urlParts.query.code, CALLBACK_URI_YPA).then(getRoles);
 }
 
-function changeCodeToToken(code, callbackUri, apiCallFunction) {
-    console.log('Exchaning authorization code to access token...');
-    var options = {
-        method: 'POST',
-        hostname: WEB_API_HOSTNAME,
-        port: WEB_API_PORT,
-        headers: {
-            'Authorization': basicAuthorizationHeader(CLIENT_ID, API_OAUTH_SECRET)
-        },
-        path: '/oauth/token?code=' + code + '&grant_type=authorization_code&redirect_uri=' + callbackUri
-    };
-    var req = http.request(options, function(res) {
-        var body = '';
-        res.setEncoding('utf8');
+function changeCodeToToken(code, callbackUri) {
+    return new Promise(
+        (resolve, reject) => {
+            console.log('Exchaning authorization code to access token...');
+            var options = {
+                method: 'POST',
+                hostname: WEB_API_HOSTNAME,
+                port: WEB_API_PORT,
+                headers: {
+                    'Authorization': basicAuthorizationHeader(CLIENT_ID, API_OAUTH_SECRET)
+                },
+                path: '/oauth/token?code=' + code + '&grant_type=authorization_code&redirect_uri=' + callbackUri
+            };
+            var req = http.request(options, function(res) {
+                var body = '';
+                res.setEncoding('utf8');
 
-        res.on('data', (chunk) => {
-            body += chunk;
-        });
+                res.on('data', (chunk) => {
+                    body += chunk;
+                });
 
-        res.on('end', () => {
-            try {
-                var data = JSON.parse(body);
-                console.log('Status from OAuth token endpoint: ' + res.statusCode);
-                console.log("Response from OAuth token endpoint: " + body);
-                //{"access_token":"12ea9653-814b-4b1f-a877-4aeecd92d2ba","token_type":"bearer","refresh_token":"77543b3a-8823-49ea-929e-a9b6b63a9403","expires_in":599,"scope":"read write trust"}
-                var accessToken = data.access_token;
-                console.log('access_token=' + accessToken);
-                apiCallFunction(accessToken);
-            } catch (er) {
-                console.log(er);
-            }
-        });
-    });
+                res.on('end', () => {
+                    try {
+                        var data = JSON.parse(body);
+                        console.log('Status from OAuth token endpoint: ' + res.statusCode);
+                        console.log("Response from OAuth token endpoint: " + body);
+                        //{"access_token":"12ea9653-814b-4b1f-a877-4aeecd92d2ba","token_type":"bearer","refresh_token":"77543b3a-8823-49ea-929e-a9b6b63a9403","expires_in":599,"scope":"read write trust"}
+                        var accessToken = data.access_token;
+                        console.log('access_token=' + accessToken);
+                        resolve(accessToken);
+                    } catch (er) {
+                        console.log(er);
+                        reject();
+                    }
+                });
+            });
 
-    req.on('error', function(e) {
-        console.log(`problem with request: ${e.message}`);
-    });
+            req.on('error', function(e) {
+                console.log(`problem with request: ${e.message}`);
+            });
 
-    req.end();
+            req.end();
+        }
+    );
 }
 
 
@@ -190,45 +201,50 @@ function basicAuthorizationHeader(clientId, clientSecret) {
 }
 
 function getDelegate(accessToken) {
-    var resourceUrl = '/service/hpa/api/delegate/' + sessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
-    var checksumHeaderValue = xAuthorizationHeader(resourceUrl);
-    console.log('Get ' + resourceUrl);
-    var options = {
-        method: 'GET',
-        hostname: WEB_API_HOSTNAME,
-        port: WEB_API_PORT,
-        headers: {
-            'Authorization': 'Bearer ' + accessToken,
-            'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-        },
-        path: resourceUrl
-    };
+    return new Promise((resolve, reject) => {
+        var resourceUrl = '/service/hpa/api/delegate/' + sessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+        var checksumHeaderValue = xAuthorizationHeader(resourceUrl);
+        console.log('Get ' + resourceUrl);
+        var options = {
+            method: 'GET',
+            hostname: WEB_API_HOSTNAME,
+            port: WEB_API_PORT,
+            headers: {
+                'Authorization': 'Bearer ' + accessToken,
+                'X-AsiointivaltuudetAuthorization': checksumHeaderValue
+            },
+            path: resourceUrl
+        };
 
-    var req = http.request(options, function(res) {
-        var body = '';
-        res.setEncoding('utf8');
+        var req = http.request(options, function(res) {
+            var body = '';
+            res.setEncoding('utf8');
 
-        res.on('data', function(chunk) {
-            body += chunk;
-        });
-
-        res.on('end', function() {
-            console.log(body);
-            var data = JSON.parse(body);
-            console.log("Response from " + resourceUrl + ': ' + body);
-            var i = 0;
-            data.forEach((principal) => {
-                getAuthorization(accessToken, principal.personId);
+            res.on('data', function(chunk) {
+                body += chunk;
             });
+
+            res.on('end', function() {
+                console.log(body);
+                var principals = JSON.parse(body);
+                console.log("Response from " + resourceUrl + ': ' + body);
+                var result = {
+                    accessToken: accessToken,
+                    principals: principals
+                };
+                resolve(result);
+            });
+
         });
 
+        req.on('error', (e) => {
+            console.log(`problem with request: ${e.message}`);
+            reject();
+        });
+
+        req.end();
     });
 
-    req.on('error', (e) => {
-        console.log(`problem with request: ${e.message}`);
-    });
-
-    req.end();
 }
 
 
@@ -268,42 +284,6 @@ function getAuthorization(accessToken, principalId) {
     });
 
     req.end();
-}
-
-function testCallingUnauthorized(accessToken) {
-    var resourceUrl = '/service/hpa/principals/';
-
-    var options = {
-        method: 'GET',
-        hostname: WEB_API_HOSTNAME,
-        port: WEB_API_PORT,
-        headers: {
-            'Authorization': 'Bearer ' + accessToken
-        },
-        path: resourceUrl
-    };
-
-    var req = http.request(options, function(res) {
-        var body = '';
-        res.setEncoding('utf8');
-
-        res.on('data', function(chunk) {
-            body += chunk;
-        });
-
-        res.on('end', function() {
-            var data = JSON.parse(body);
-            console.log("Response from " + resourceUrl + ': ' + body);
-        });
-
-    });
-
-    req.on('error', (e) => {
-        console.log(`problem with request: ${e.message}`);
-    });
-
-    req.end();
-
 }
 
 function getRoles(accessToken) {
