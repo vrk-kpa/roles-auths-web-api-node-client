@@ -120,15 +120,16 @@ function handleReqistration(mode, request, response) {
 function handleHpaCallback(request, response) {
     var urlParts = url.parse(request.url, true);
     console.log('OAuth autorization endpoint returned code: ' + urlParts.query.code);
-    response.end();
+    // response.end();
 
     changeCodeToToken(urlParts.query.code, CALLBACK_URI_HPA)
-    .then(getDelegate)
-    .then((authArgs) => {
-        for (var i = 0; i < authArgs.principals.length; i++) {
-            getAuthorization(authArgs.accessToken, authArgs.principals[i].personId);
-        }
-    });
+        .then(getDelegate)
+        .then((authArgs) => {
+            for (var i = 0; i < authArgs.principals.length; i++) {
+                getAuthorization(authArgs.accessToken, authArgs.principals[i].personId).then((data) => {response.write(data); response.end();});
+            }
+            // response.end();
+        });
 }
 
 function handleYpaCallback(request, response) {
@@ -233,41 +234,43 @@ function getDelegate(accessToken) {
 
 
 function getAuthorization(accessToken, principalId) {
-    var resourceUrl = '/service/hpa/api/authorization/' + sessionId + '/' + principalId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
-    var checksumHeaderValue = headerUtils.xAuthorizationHeader(resourceUrl);
-    console.log('Get ' + resourceUrl);
-    var options = {
-        method: 'GET',
-        hostname: WEB_API_HOSTNAME,
-        port: WEB_API_PORT,
-        headers: {
-            'Authorization': 'Bearer ' + accessToken,
-            'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-        },
-        path: resourceUrl
-    };
+    return new Promise((resolve, reject) => {
+        var resourceUrl = '/service/hpa/api/authorization/' + sessionId + '/' + principalId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+        var checksumHeaderValue = headerUtils.xAuthorizationHeader(resourceUrl);
+        console.log('Get ' + resourceUrl);
+        var options = {
+            method: 'GET',
+            hostname: WEB_API_HOSTNAME,
+            port: WEB_API_PORT,
+            headers: {
+                'Authorization': 'Bearer ' + accessToken,
+                'X-AsiointivaltuudetAuthorization': checksumHeaderValue
+            },
+            path: resourceUrl
+        };
 
-    var req = http.request(options, function(res) {
-        var body = '';
-        res.setEncoding('utf8');
+        var req = http.request(options, function(res) {
+            var body = '';
+            res.setEncoding('utf8');
 
-        res.on('data', function(chunk) {
-            body += chunk;
+            res.on('data', function(chunk) {
+                body += chunk;
+            });
+
+            res.on('end', function() {
+                console.log(body);
+                var data = JSON.parse(body);
+                resolve(data);
+            });
+
         });
 
-        res.on('end', function() {
-            console.log(body);
-            var data = JSON.parse(body);
-            console.log("Response from " + resourceUrl + ': ' + body);
+        req.on('error', (e) => {
+            console.log(`problem with request: ${e.message}`);
         });
 
+        req.end();
     });
-
-    req.on('error', (e) => {
-        console.log(`problem with request: ${e.message}`);
-    });
-
-    req.end();
 }
 
 function getRoles(accessToken) {
