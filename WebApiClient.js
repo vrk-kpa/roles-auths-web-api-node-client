@@ -48,9 +48,10 @@ http.createServer(function(request, response) {
         handleReqistration('ypa', request, response);
     }
 
-}).listen(9999);
+}).listen(port);
 
-console.log("server running at\n  => http://localhost:" + 9999);
+console.log("Browse to http://localhost:9999/hpa or http://localhost:9999/ypa");
+
 
 function handleReqistration(mode, request, response) {
     console.log("Registering WEB API session...");
