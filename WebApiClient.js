@@ -1,6 +1,6 @@
 /**
  * The MIT License
- * Copyright (c) 2017 Population Register Centre
+ * Copyright (c) 2016 Population Register Centre
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,429 +20,296 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-var request = require('request');
-var url = require('url');
-var fs = require('fs');
-var http = require('http');
-var https = require('https');
-var express = require('express');
-var cookieParser = require('cookie-parser');
-var headerUtils = require('./lib/HeaderUtils.js');
+var http = require("http");;
+var url = require("url");
+var fs = require("fs");
+var express = require('express')
+var app = express()
+var headerUtils = require("./lib/HeaderUtils.js");
+var port = 9999;
 
-var app = express();
-app.use(cookieParser());
 var config = {};
+var sessionId = '';
 
-/**
- * Initializes application with properties from config.json.
- * 
- */
 function init() {
     config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
-    console.log("using the following config:\n" + JSON.stringify(config));
-    var server;
-    var clientBaseUrl;
-    if (config.ssl) {
-        if (!config.clientBaseUrl) {
-            config.clientBaseUrl = 'https://localhost:' + config.port;
-        }
-        var privateKey = fs.readFileSync(config.ssl.privateKey, 'utf8');
-        var certificate = fs.readFileSync(config.ssl.certificate, 'utf8');
-        var credentials = { key: privateKey, cert: certificate, passphrase: config.ssl.passPhrase };
-        server = https.createServer(credentials, app);
-    } else {
-        if (!config.clientBaseUrl) {
-            config.clientBaseUrl = 'http://localhost:' + config.port;
-        }
-        server = http.createServer(app);
+    config.callbackUriHpa = encodeURI(config.callbackUriHpa);
+    config.callbackUriYpa = encodeURI(config.callbackUriYpa);
+    CLIENT_SECRET = config.clientSecret;
+    CLIENT_ID = config.clientId;
+    if (config.requireSsl) {
+        http = require("https");
     }
-    config.callbackUriHpa = encodeURI(config.clientBaseUrl + '/callback/hpa');
-    config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
-
-    server.listen(config.port, function () {
-        var port = config.port;
-        console.log('\nBrowse to:\n\n' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]' + ' or\n' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]?askIssue=true' + ' or\n' + config.clientBaseUrl + '/register/ypa/[TEST_HETU]');
-    });
+    console.log("using the following config:\n" + JSON.stringify(config));
 }
 
-/**
- * Resource for registering Web API HPA session for a user who will be acting as the delegate. 
- * First, function makes backend call to Web API to register the delegate. Then, it redirects
- * user's browser to the Web API selection UI.
- *
- * If query parameter ?askIssue=true is added to the URL, issue URI will be asked after returning
- * from the selection UI.
- * 
- * :hetu is SSN of the delegate. That is, the authenticated user.
- */
-app.get('/register/hpa/:hetu', function (request, response) {
-    // test hetu 010180-9026
-    var callbackUri = config.callbackUriHpa;
-    if(request.query.askIssue && request.query.askIssue === 'true') {
-        callbackUri += "?askIssue=true";
-    }
-    register('hpa', request.params.hetu, callbackUri, response).
-        then(redirectToWebApiSelection).
-        catch(function (reason) {
-            console.error(reason);
-            response.status(500).send("Failed to register HPA session.");
-        });
+init();
+
+app.get('/register/hpa', function (request, response) {
+    handleReqistration('hpa', config.hetuHpa, config.callbackUriHpa, request, response);
 });
 
-/**
- * Resource for handling return from Web API selection UI.
- *
- * If callback URI contains query parameter askIssue=true, issue form is presented before proceeding
- * to the delegate and authorization calls.
- *
- * After this check, OAuth code is changed to OAuth token
- * with Web API backend. Then using the token gets selected principal(s) from delegate Web API 
- * resource. Finally, gets and returns authorization information of principals.
- */
 app.get('/callback/hpa', function (request, response) {
-    var urlParts = url.parse(request.url, true);
-    var callbackUri = config.callbackUriHpa;
-    var issue = '';
-    if(urlParts.query.askIssue && urlParts.query.askIssue === 'true' && !urlParts.query.issue ) {
-       var askIssueTemplate =
-            "<html>\n"+
-            "    <head><title>Enter issue URI</title></head>\n"+
-            "    <body>\n"+
-            "        <form method='GET' action='/callback/hpa'>\n"+
-            "           Issue URI:<br/>\n"+
-            "           <input name='issue' type='text'/>\n"+
-            "           <input name='code' type='hidden' value='"+urlParts.query.code+"'/>\n"+
-            "           <input name='askIssue' type='hidden' value='true'/>\n"+
-            "           <input type='submit' value='Submit'/>\n"+
-            "        </form>\n"+
-            "    </body>\n"+
-            "</html>\n";
-        response.status(200).send(askIssueTemplate)
-    } else {
-        if(urlParts.query.askIssue && urlParts.query.askIssue === 'true') {
-            callbackUri += "?askIssue=true";
-        }
-        if(urlParts.query.issue && urlParts.query.issue !== '') {
-            issue = encodeURIComponent(urlParts.query.issue);
-            callbackUri += "&issue="+issue;
-        }
-        changeCodeToToken(request.cookies.webApiSessionId, urlParts.query.code, issue, callbackUri).
-            then(getDelegate).
-            then(getAuthorizations).
-            then(function (authorizations) {
-                response.status(200).send(authorizations);
-            }).
-            catch(function (reason) {
-                console.error(reason);
-                response.status(500).send("Failed to get authorization.");
-            });
-    }
+    handleHpaCallback(request, response);
 });
 
-/**
- * Resource for registering Web API YPA session for a user who will be acting as the delegate. 
- * First, function makes backend call to Web API to register the delegate. Then, it redirects
- * user's browser to the Web API selection UI.
- * 
- * :hetu is SSN of the delegate. That is, the authenticated user.
- */
-app.get('/register/ypa/:hetu', function (request, response) {
-    // test hetu 010180-9026
-    register('ypa', request.params.hetu, config.callbackUriYpa, response).
-        then(redirectToWebApiSelection).
-        catch(function (reason) {
-            console.error(reason);
-            response.status(500).send("Failed to register YPA session.");
-        });
+app.get('/register/ypa', function (request, response) {
+    handleReqistration('ypa', config.hetuYpa, config.callbackUriYpa, request, response);
 });
 
-/**
- * Resource for handling return from Web API selection UI. First changes OAuth code to OAuth token 
- * with Web API backend. Then using the token gets and returns the company roles of the delegate.
- */
 app.get('/callback/ypa', function (request, response) {
-    var urlParts = url.parse(request.url, true);
-    changeCodeToToken(request.cookies.webApiSessionId, urlParts.query.code, '', config.callbackUriYpa).
-        then(getRoles).
-        then(function (roles) {
-            response.status(200).send(roles);
-        }).
-        catch(function (reason) {
-            console.error(reason);
-            response.status(500).send("Failed to get company roles.");
-        });
+    handleYpaCallback(request, response);
 });
 
-/**
- * Function to handle registeration to the Web API backend.
- * 
- * @param {string} mode - Eather `HPA` or `YPA`.
- * @param {string} delegateHetu - SSN of the delegate.
- * @param {string} callbackUri - The location where the user's browser is redirected after the selection of principal.
- * @param {Object} response - Response to the browser.
- * @return {Promise}
- */
-function register(mode, delegateHetu, callbackUri, response) {
-    return new Promise(function (resolve, reject) {
-        //Registering WEB API session
-        var registerPath = '/service/' + mode + '/user/register/' + config.clientId + '/' + delegateHetu + '?requestId=nodeClient&endUserId=nodeEndUser';
+app.listen(config.port || 9999, function () {
+    console.log('App listening on port ' + config.port || 9999);
+});
 
-        // Adding X-AsiointivaltuudetAuthorization header
-        var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, registerPath);
+function handleReqistration(mode, delegateHetu, callbackUri, request, response) {
+    console.log("Registering WEB API session...");
+    var registerPath = '/service/' + mode + '/user/register/' + config.clientId + '/' + delegateHetu + '?requestId=nodeClient&endUserId=nodeEndUser';
 
-        var options = {
-            method: 'GET',
-            url: config.webApiUrl + registerPath,
-            headers: {
-                'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-            }
-        };
+    console.log('Adding X-AsiointivaltuudetAuthorization header...')
+    var checksumHeaderValue = headerUtils.xAuthorizationHeader(registerPath);
 
-        request(options, function (error, res, body) {
-            if (!error && res.statusCode === 200) {
+    var options = {
+        method: 'GET',
+        hostname: config.webApiHostname,
+        port: config.webApiPort,
+        path: registerPath,
+        headers: {
+            'X-AsiointivaltuudetAuthorization': checksumHeaderValue
+        }
+    };
+
+    var req = http.request(options, function (res) {
+        var body = '';
+        res.setEncoding('utf8');
+
+        res.on('data', (chunk) => {
+            body += chunk;
+        });
+
+        res.on('end', () => {
+            if (res.statusCode === 200) {
                 try {
                     var data = JSON.parse(body);
-                    //Don't do this in production. Don't expose webApiSessionId to the user.
-                    response.cookie("webApiSessionId", data.sessionId);
-                    resolve({ userId: data.userId, response: response, callbackUri: callbackUri });
-                } catch (e) {
-                    console.error("Exception thrown while parsing response body: " + body);
-                    reject(e.stack);
+                    sessionId = data.sessionId;
+                    var authorizeUrl = 'http://' + config.webApiHostname + ':' + config.webApiPort + '/oauth/authorize?client_id=' + config.clientId + '&response_type=code&redirect_uri=' + callbackUri + '&user=' + data.userId;
+                    console.log("Got sessionId=" + sessionId);
+                    console.log('Redirecting user-agent to: ' + authorizeUrl);
+                    response.writeHead(302, {
+                        'Location': authorizeUrl
+                    });
+                } catch (er) {
+                    response.writeHead(500);
                 }
             } else {
-                reject(res.toJSON());
+                console.log('Response status code: ' + res.statusCode);
+                console.log('Response status message: ' + res.statusMessage);
+                console.log(body);
+                response.writeHead(500);
+            }
+            response.end();
+        });
+    });
+
+    req.on('error', (e) => {
+        console.log(`problem with request: ${e.message}`);
+    });
+
+    req.end();
+}
+
+function handleHpaCallback(request, response) {
+    var urlParts = url.parse(request.url, true);
+    console.log('OAuth autorization endpoint returned code: ' + urlParts.query.code);
+
+    changeCodeToToken(urlParts.query.code, config.callbackUriHpa)
+        .then(getDelegate)
+        .then((authArgs) => {
+            for (var i = 0; i < authArgs.principals.length; i++) {
+                getAuthorization(authArgs.accessToken, authArgs.principals[i].personId).then((data) => { response.write(data); response.end(); });
             }
         });
-
-    });
 }
 
-/**
- * Redirects user's browser to the Web API selection UI.
- * 
- * @param {Object} args - function arguments: 
- * {string} userId - id returned from Web API registration resource, 
- * {Object} response - response for the user's browser, 
- * {string} callbackUri - URL where user is redirected after the selection.
- * @return {Promise}
- */
-function redirectToWebApiSelection(args) {
-    return new Promise(function (resolve, reject) {
-        var authorizeUrl = config.webApiUrl + '/oauth/authorize?client_id=' + config.clientId + '&response_type=code&redirect_uri=' + args.callbackUri + '&user=' + args.userId;
-        args.response.writeHead(302, {
-            'Location': authorizeUrl
-        });
-        args.response.end();
-        resolve();
-    });
+function handleYpaCallback(request, response) {
+    var urlParts = url.parse(request.url, true);
+    console.log('OAuth autorization endpoint returned code: ' + urlParts.query.code);
+    response.end();
+    changeCodeToToken(urlParts.query.code, config.callbackUriYpa).then(getRoles);
 }
 
-/**
- * Changes OAuth code to token with Web API backend.
- * 
- * @param {string} webApiSessionId - Web API session ID.
- * @param {string} code - OAuth code from Web API callback URL.
- * @param {string} issue - Issue URI.
- * @param {string} callbackUri -  URI where the user was redirected after the selection.
- * @return {Promise}
- */
-function changeCodeToToken(webApiSessionId, code, issue, callbackUri) {
+function changeCodeToToken(code, callbackUri) {
     return new Promise(
         (resolve, reject) => {
-            console.log('Exchanging authorization code to access token...');
+            console.log('Exchaning authorization code to access token...');
             var options = {
                 method: 'POST',
-                url: config.webApiUrl + '/oauth/token?code=' + code + '&grant_type=authorization_code&redirect_uri=' + callbackUri,
+                hostname: config.webApiHostname,
+                port: config.webApiPort,
                 headers: {
                     'Authorization': headerUtils.basicAuthorizationHeader(config.clientId, config.apiOauthSecret)
                 },
+                path: '/oauth/token?code=' + code + '&grant_type=authorization_code&redirect_uri=' + callbackUri
             };
-            request(options, function (error, res, body) {
-                if (!error && res.statusCode === 200) {
+            var req = http.request(options, function (res) {
+                var body = '';
+                res.setEncoding('utf8');
+
+                res.on('data', (chunk) => {
+                    body += chunk;
+                });
+
+                res.on('end', () => {
                     try {
                         var data = JSON.parse(body);
+                        console.log('Status from OAuth token endpoint: ' + res.statusCode);
+                        console.log("Response from OAuth token endpoint: " + body);
                         //{"access_token":"12ea9653-814b-4b1f-a877-4aeecd92d2ba","token_type":"bearer","refresh_token":"77543b3a-8823-49ea-929e-a9b6b63a9403","expires_in":599,"scope":"read write trust"}
-                        var args = {};
-                        args.accessToken = data.access_token;
-                        args.webApiSessionId = webApiSessionId;
-                        if(issue && issue !== '') {
-                            args.issue = issue;
-                        }
-                        resolve(args);
-                    } catch (e) {
-                        console.error("Exception thrown while parsing response body: " + body);
-                        reject(e.stack);
+                        var accessToken = data.access_token;
+                        console.log('access_token=' + accessToken);
+                        resolve(accessToken);
+                    } catch (er) {
+                        console.log(er);
+                        reject();
                     }
-                } else {
-                    reject(res.toJSON());
-                }
+                });
             });
+
+            req.on('error', function (e) {
+                console.log(`problem with request: ${e.message}`);
+            });
+
+            req.end();
         }
     );
 }
 
-/**
- * Makes delegate call to the Web API backed. Get the selected principal(s) with the call.
- * @param {object} args - Function arguments:
- * {string} accessToken - OAuth access token,
- * {string} webApiSessionId - Web API session id.
- * {string} issue - Issue URI.
- * @return {Promise}
- */
-function getDelegate(args) {
-    return new Promise(function (resolve, reject) {
-        var resourceUrl = '/service/hpa/api/delegate/' + args.webApiSessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
-        var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
+function getDelegate(accessToken) {
+    return new Promise((resolve, reject) => {
+        var resourceUrl = '/service/hpa/api/delegate/' + sessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+        var checksumHeaderValue = headerUtils.xAuthorizationHeader(resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
             method: 'GET',
-            url: config.webApiUrl + resourceUrl,
-            headers: {
-                'Authorization': 'Bearer ' + args.accessToken,
-                'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-            },
-        };
-
-        request(options, function (error, res, body) {
-            if (!error && res.statusCode === 200) {
-                try {
-                    var principals = JSON.parse(body);
-                    console.log("Response from " + resourceUrl + ': ' + body);
-                    var result = {
-                        webApiSessionId: args.webApiSessionId,
-                        accessToken: args.accessToken,
-                        issue: args.issue,
-                        principals: principals
-                    };
-                    resolve(result);
-                } catch (e) {
-                    console.error("Exception thrown while parsing response body: " + body);
-                    reject(e.stack);
-                }
-            } else {
-                reject(res.toJSON());
-            }
-        });
-    });
-
-}
-
-/**
- * Makes authorization calls to the Web API backend, one for each selected 
- * principal. Get the authorizations for the principals.
- * 
- * @param {object} authArgs - Function arguments:
- * {string} accessToken - OAuth access token,
- * {string} webApiSessionId - Web API session id.
- * {string} issue - Issue URI.
- * {array} principals - principal objects. 
- * @return {Promise}
- */
-function getAuthorizations(authArgs) {
-    return new Promise(function (resolve, reject) {
-        var promises = [];
-        for (var i = 0; i < authArgs.principals.length; i++) {
-            promises.push(getAuthorization(authArgs.webApiSessionId, authArgs.accessToken, authArgs.principals[i], authArgs.issue || ''));
-        }
-        Promise.all(promises).then(function (values) {
-            var authorizations = [];
-            try {
-                for (var j = 0; j < values.length; j++) {
-                    if (values[j].errorMessage) {
-                        reject(values[j].errorMessage);
-                    }
-                    authorizations.push(values[j]);
-                }
-                resolve(authorizations);
-            } catch (e) {
-                console.error("Exception thrown while parsing response body: " + body);
-                reject(e.stack);
-            }
-        }).catch(function (reason) {
-            reject(reason);
-        });
-    });
-}
-
-/**
- * Makes an authorization call to the Web API backend.
- * 
- * @param {string} webApiSessionId - Web API session ID.
- * @param {string} accessToken - OAuth access token.
- * @param {Object} principal - principal.
- * @param {string} issue - Issue URI.
- * @return {Promise}
- */
-function getAuthorization(webApiSessionId, accessToken, principal, issue) {
-    return new Promise(function (resolve, reject) {
-        var resourceUrl = '/service/hpa/api/authorization/' + webApiSessionId + '/' + principal.personId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
-        if(issue && issue !== '') {
-            resourceUrl += "&issues="+issue;
-        }
-        var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
-        console.log('Get ' + resourceUrl);
-        var options = {
-            method: 'GET',
-            url: config.webApiUrl + resourceUrl,
+            hostname: config.webApiHostname,
+            port: config.webApiPort,
             headers: {
                 'Authorization': 'Bearer ' + accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-            }
+            },
+            path: resourceUrl
         };
 
-        request(options, function (error, res, body) {
-            if (!error && res.statusCode === 200) {
-                try {
-                    var data = JSON.parse(body);
-                    data.principal = principal;
-                    resolve(data);
-                } catch (e) {
-                    console.error("Exception thrown while parsing response body: " + body);
-                    reject(e.stack);
-                }
-            } else {
-                reject(res.toJSON());
-            }
+        var req = http.request(options, function (res) {
+            var body = '';
+            res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                body += chunk;
+            });
+
+            res.on('end', function () {
+                console.log(body);
+                var principals = JSON.parse(body);
+                console.log("Response from " + resourceUrl + ': ' + body);
+                var result = {
+                    accessToken: accessToken,
+                    principals: principals
+                };
+                resolve(result);
+            });
+
         });
+
+        req.on('error', (e) => {
+            console.log(`problem with request: ${e.message}`);
+            reject();
+        });
+
+        req.end();
     });
+
 }
 
-/**
- * Gets company roles from Web API backend.
- * 
- * @param {object} args - Function arguments:
- * {string} accessToken - OAuth access token,
- * {string} webApiSessionId - Web API session id.
- * @return {Promise}
- */
-function getRoles(args) {
-    return new Promise(function (resolve, reject) {
-        var resourceUrl = '/service/ypa/api/organizationRoles/' + args.webApiSessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
-        var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
+
+function getAuthorization(accessToken, principalId) {
+    return new Promise((resolve, reject) => {
+        var resourceUrl = '/service/hpa/api/authorization/' + sessionId + '/' + principalId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+        var checksumHeaderValue = headerUtils.xAuthorizationHeader(resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
             method: 'GET',
-            url: config.webApiUrl + resourceUrl,
+            hostname: config.webApiHostname,
+            port: config.webApiPort,
             headers: {
-                'Authorization': 'Bearer ' + args.accessToken,
+                'Authorization': 'Bearer ' + accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
             },
+            path: resourceUrl
         };
 
-        request(options, function (error, res, body) {
-            if (!error && res.statusCode === 200) {
-                try {
-                    var data = JSON.parse(body);
-                    resolve(data);
-                } catch (e) {
-                    console.error("Exception thrown while parsing response body: " + body);
-                    reject(e.stack);
-                }
-            } else {
-                reject(res.toJSON());
-            }
+        var req = http.request(options, function (res) {
+            var body = '';
+            res.setEncoding('utf8');
+
+            res.on('data', function (chunk) {
+                body += chunk;
+            });
+
+            res.on('end', function () {
+                console.log(body);
+                var data = JSON.parse(body);
+                resolve(data);
+            });
+
         });
+
+        req.on('error', (e) => {
+            console.log(`problem with request: ${e.message}`);
+        });
+
+        req.end();
     });
 }
 
-init();
+function getRoles(accessToken) {
+    var resourceUrl = '/service/ypa/api/organizationRoles/' + sessionId + '/123456-1' + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+    var checksumHeaderValue = headerUtils.xAuthorizationHeader(resourceUrl);
+    console.log('Get ' + resourceUrl);
+    var options = {
+        method: 'GET',
+        hostname: config.webApiHostname,
+        port: config.webApiPort,
+        headers: {
+            'Authorization': 'Bearer ' + accessToken,
+            'X-AsiointivaltuudetAuthorization': checksumHeaderValue
+        },
+        path: resourceUrl
+    };
+
+    var req = http.request(options, function (res) {
+        var body = '';
+        res.setEncoding('utf8');
+
+        res.on('data', function (chunk) {
+            body += chunk;
+        });
+
+        res.on('end', function () {
+            var data = JSON.parse(body);
+            console.log("Status from " + resourceUrl + ': ' + res.statusCode);
+            console.log("Response from " + resourceUrl + ': ' + body);
+        });
+
+    });
+
+    req.on('error', (e) => {
+        console.log(`problem with request: ${e.message}`);
+    });
+
+    req.end();
+
+}
