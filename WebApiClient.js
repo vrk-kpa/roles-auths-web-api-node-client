@@ -20,24 +20,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-var http = require("http"),
-    url = require("url"),
-    headerUtils = require("./lib/HeaderUtils.js"),
-    port = process.argv[2] || 9999;
+var http = require("http");;
+var url = require("url");
+var fs = require("fs");
+var headerUtils = require("./lib/HeaderUtils.js");
+var port = 9999;
 
-WEB_API_HOSTNAME = 'localhost';
-WEB_API_PORT = 8102;
-CLIENT_ID = '42bbe569';
-CLIENT_SECRET = '3ba56df8-88b8-4805-9b04-2f8e7a61ae8f';
-API_OAUTH_SECRET = 'badb-abe4-cafe';
-CALLBACK_URI_HPA = encodeURI('http://localhost:9999/callback/hpa');
-CALLBACK_URI_YPA = encodeURI('http://localhost:9999/callback/ypa');
-HETU_HPA = '010180-9026';
-HETU_YPA = '010180-9026';
+var config = {};
+var sessionId = '';
 
-sessionId = '';
+function init() {
+    config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
+    config.callbackUriHpa = encodeURI(config.callbackUriHpa);
+    config.callbackUriYpa = encodeURI(config.callbackUriYpa);
+    CLIENT_SECRET = config.clientSecret;
+    CLIENT_ID = config.clientId;
+    if (config.requireSsl) {
+        http = require("https");
+    }
+    console.log("using the following config:\n" + JSON.stringify(config));
+}
 
-http.createServer(function(request, response) {
+init();
+
+http.createServer(function (request, response) {
     if (request.url.substring(0, 13) === '/callback/hpa') {
         handleHpaCallback(request, response);
     } else if (request.url.substring(0, 13) === '/callback/ypa') {
@@ -48,38 +54,35 @@ http.createServer(function(request, response) {
         handleReqistration('ypa', request, response);
     }
 
-}).listen(port);
-
-console.log("Browse to http://localhost:9999/hpa or http://localhost:9999/ypa");
-
+}).listen(config.port || 9999);
 
 function handleReqistration(mode, request, response) {
     console.log("Registering WEB API session...");
 
     if (mode === 'hpa') {
-        var delegateHetu = HETU_HPA;
-        var callbackUri = CALLBACK_URI_HPA;
+        var delegateHetu = config.hetuHpa;
+        var callbackUri = config.callbackUriHpa;
     } else if (mode === 'ypa') {
-        var delegateHetu = HETU_YPA;
-        var callbackUri = CALLBACK_URI_YPA;
+        var delegateHetu = config.hetuYpa;
+        var callbackUri = config.callbackUriYpa;
     }
 
-    var path = '/service/' + mode + '/user/register/' + CLIENT_ID + '/' + delegateHetu + '?requestId=nodeClient&endUserId=nodeEndUser';
+    var registerPath = '/service/' + mode + '/user/register/' + config.clientId + '/' + delegateHetu + '?requestId=nodeClient&endUserId=nodeEndUser';
 
     console.log('Adding X-AsiointivaltuudetAuthorization header...')
-    var checksumHeaderValue = headerUtils.xAuthorizationHeader(path);
+    var checksumHeaderValue = headerUtils.xAuthorizationHeader(registerPath);
 
     var options = {
         method: 'GET',
-        hostname: WEB_API_HOSTNAME,
-        port: WEB_API_PORT,
-        path: path,
+        hostname: config.webApiHostname,
+        port: config.webApiPort,
+        path: registerPath,
         headers: {
             'X-AsiointivaltuudetAuthorization': checksumHeaderValue
         }
     };
 
-    var req = http.request(options, function(res) {
+    var req = http.request(options, function (res) {
         var body = '';
         res.setEncoding('utf8');
 
@@ -92,7 +95,7 @@ function handleReqistration(mode, request, response) {
                 try {
                     var data = JSON.parse(body);
                     sessionId = data.sessionId;
-                    var authorizeUrl = 'http://' + WEB_API_HOSTNAME + ':' + WEB_API_PORT + '/oauth/authorize?client_id=' + CLIENT_ID + '&response_type=code&redirect_uri=' + callbackUri + '&user=' + data.userId;
+                    var authorizeUrl = 'http://' + config.webApiHostname + ':' + config.webApiPort + '/oauth/authorize?client_id=' + config.clientId + '&response_type=code&redirect_uri=' + callbackUri + '&user=' + data.userId;
                     console.log("Got sessionId=" + sessionId);
                     console.log('Redirecting user-agent to: ' + authorizeUrl);
                     response.writeHead(302, {
@@ -123,11 +126,11 @@ function handleHpaCallback(request, response) {
     console.log('OAuth autorization endpoint returned code: ' + urlParts.query.code);
     // response.end();
 
-    changeCodeToToken(urlParts.query.code, CALLBACK_URI_HPA)
+    changeCodeToToken(urlParts.query.code, config.callbackUriHpa)
         .then(getDelegate)
         .then((authArgs) => {
             for (var i = 0; i < authArgs.principals.length; i++) {
-                getAuthorization(authArgs.accessToken, authArgs.principals[i].personId).then((data) => {response.write(data); response.end();});
+                getAuthorization(authArgs.accessToken, authArgs.principals[i].personId).then((data) => { response.write(data); response.end(); });
             }
             // response.end();
         });
@@ -137,7 +140,7 @@ function handleYpaCallback(request, response) {
     var urlParts = url.parse(request.url, true);
     console.log('OAuth autorization endpoint returned code: ' + urlParts.query.code);
     response.end();
-    changeCodeToToken(urlParts.query.code, CALLBACK_URI_YPA).then(getRoles);
+    changeCodeToToken(urlParts.query.code, config.callbackUriYpa).then(getRoles);
 }
 
 function changeCodeToToken(code, callbackUri) {
@@ -146,14 +149,14 @@ function changeCodeToToken(code, callbackUri) {
             console.log('Exchaning authorization code to access token...');
             var options = {
                 method: 'POST',
-                hostname: WEB_API_HOSTNAME,
-                port: WEB_API_PORT,
+                hostname: config.webApiHostname,
+                port: config.webApiPort,
                 headers: {
-                    'Authorization': headerUtils.basicAuthorizationHeader(CLIENT_ID, API_OAUTH_SECRET)
+                    'Authorization': headerUtils.basicAuthorizationHeader(config.clientId, config.apiOauthSecret)
                 },
                 path: '/oauth/token?code=' + code + '&grant_type=authorization_code&redirect_uri=' + callbackUri
             };
-            var req = http.request(options, function(res) {
+            var req = http.request(options, function (res) {
                 var body = '';
                 res.setEncoding('utf8');
 
@@ -177,7 +180,7 @@ function changeCodeToToken(code, callbackUri) {
                 });
             });
 
-            req.on('error', function(e) {
+            req.on('error', function (e) {
                 console.log(`problem with request: ${e.message}`);
             });
 
@@ -193,8 +196,8 @@ function getDelegate(accessToken) {
         console.log('Get ' + resourceUrl);
         var options = {
             method: 'GET',
-            hostname: WEB_API_HOSTNAME,
-            port: WEB_API_PORT,
+            hostname: config.webApiHostname,
+            port: config.webApiPort,
             headers: {
                 'Authorization': 'Bearer ' + accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
@@ -202,15 +205,15 @@ function getDelegate(accessToken) {
             path: resourceUrl
         };
 
-        var req = http.request(options, function(res) {
+        var req = http.request(options, function (res) {
             var body = '';
             res.setEncoding('utf8');
 
-            res.on('data', function(chunk) {
+            res.on('data', function (chunk) {
                 body += chunk;
             });
 
-            res.on('end', function() {
+            res.on('end', function () {
                 console.log(body);
                 var principals = JSON.parse(body);
                 console.log("Response from " + resourceUrl + ': ' + body);
@@ -241,8 +244,8 @@ function getAuthorization(accessToken, principalId) {
         console.log('Get ' + resourceUrl);
         var options = {
             method: 'GET',
-            hostname: WEB_API_HOSTNAME,
-            port: WEB_API_PORT,
+            hostname: config.webApiHostname,
+            port: config.webApiPort,
             headers: {
                 'Authorization': 'Bearer ' + accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
@@ -250,15 +253,15 @@ function getAuthorization(accessToken, principalId) {
             path: resourceUrl
         };
 
-        var req = http.request(options, function(res) {
+        var req = http.request(options, function (res) {
             var body = '';
             res.setEncoding('utf8');
 
-            res.on('data', function(chunk) {
+            res.on('data', function (chunk) {
                 body += chunk;
             });
 
-            res.on('end', function() {
+            res.on('end', function () {
                 console.log(body);
                 var data = JSON.parse(body);
                 resolve(data);
@@ -280,8 +283,8 @@ function getRoles(accessToken) {
     console.log('Get ' + resourceUrl);
     var options = {
         method: 'GET',
-        hostname: WEB_API_HOSTNAME,
-        port: WEB_API_PORT,
+        hostname: config.webApiHostname,
+        port: config.webApiPort,
         headers: {
             'Authorization': 'Bearer ' + accessToken,
             'X-AsiointivaltuudetAuthorization': checksumHeaderValue
@@ -289,15 +292,15 @@ function getRoles(accessToken) {
         path: resourceUrl
     };
 
-    var req = http.request(options, function(res) {
+    var req = http.request(options, function (res) {
         var body = '';
         res.setEncoding('utf8');
 
-        res.on('data', function(chunk) {
+        res.on('data', function (chunk) {
             body += chunk;
         });
 
-        res.on('end', function() {
+        res.on('end', function () {
             var data = JSON.parse(body);
             console.log("Status from " + resourceUrl + ': ' + res.statusCode);
             console.log("Response from " + resourceUrl + ': ' + body);
