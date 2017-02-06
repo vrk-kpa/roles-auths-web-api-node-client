@@ -23,6 +23,8 @@
 var http = require("http");;
 var url = require("url");
 var fs = require("fs");
+var express = require('express')
+var app = express()
 var headerUtils = require("./lib/HeaderUtils.js");
 var port = 9999;
 
@@ -43,30 +45,28 @@ function init() {
 
 init();
 
-http.createServer(function (request, response) {
-    if (request.url.substring(0, 13) === '/callback/hpa') {
-        handleHpaCallback(request, response);
-    } else if (request.url.substring(0, 13) === '/callback/ypa') {
-        handleYpaCallback(request, response);
-    } else if (request.url === '/hpa') {
-        handleReqistration('hpa', request, response);
-    } else if (request.url === '/ypa') {
-        handleReqistration('ypa', request, response);
-    }
+app.get('/register/hpa', function (request, response) {
+    handleReqistration('hpa', config.hetuHpa, config.callbackUriHpa, request, response);
+});
 
-}).listen(config.port || 9999);
+app.get('/callback/hpa', function (request, response) {
+    handleHpaCallback(request, response);
+});
 
-function handleReqistration(mode, request, response) {
+app.get('/register/ypa', function (request, response) {
+    handleReqistration('ypa', config.hetuYpa, config.callbackUriYpa, request, response);
+});
+
+app.get('/callback/ypa', function (request, response) {
+    handleYpaCallback(request, response);
+});
+
+app.listen(config.port || 9999, function () {
+    console.log('App listening on port ' + config.port || 9999);
+});
+
+function handleReqistration(mode, delegateHetu, callbackUri, request, response) {
     console.log("Registering WEB API session...");
-
-    if (mode === 'hpa') {
-        var delegateHetu = config.hetuHpa;
-        var callbackUri = config.callbackUriHpa;
-    } else if (mode === 'ypa') {
-        var delegateHetu = config.hetuYpa;
-        var callbackUri = config.callbackUriYpa;
-    }
-
     var registerPath = '/service/' + mode + '/user/register/' + config.clientId + '/' + delegateHetu + '?requestId=nodeClient&endUserId=nodeEndUser';
 
     console.log('Adding X-AsiointivaltuudetAuthorization header...')
@@ -124,7 +124,6 @@ function handleReqistration(mode, request, response) {
 function handleHpaCallback(request, response) {
     var urlParts = url.parse(request.url, true);
     console.log('OAuth autorization endpoint returned code: ' + urlParts.query.code);
-    // response.end();
 
     changeCodeToToken(urlParts.query.code, config.callbackUriHpa)
         .then(getDelegate)
@@ -132,7 +131,6 @@ function handleHpaCallback(request, response) {
             for (var i = 0; i < authArgs.principals.length; i++) {
                 getAuthorization(authArgs.accessToken, authArgs.principals[i].personId).then((data) => { response.write(data); response.end(); });
             }
-            // response.end();
         });
 }
 

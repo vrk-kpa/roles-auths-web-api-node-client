@@ -2,9 +2,9 @@
   "name": "web-api-node-client",
   "version": "0.0.1",
   "dependencies": {
+    "express": "^4.10.8",
     "http-proxy": "~1.11",
-    "express": "~4.10.2",
-    "properties-reader": "0.0.10",
-    "moment": "2.11.2"
+    "moment": "2.11.2",
+    "properties-reader": "0.0.10"
   }
 }
