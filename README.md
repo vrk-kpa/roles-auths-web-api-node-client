@@ -1,6 +1,11 @@
 # roles-auths-web-api-node-client
 
-`config.json`
+Client for Asiointivaltuudet Web API made with Node.js.
+
+How to run
+----------
+Save your id and secrets to /config.json. Set also other properties.
+
 `{
     "port": 9999,
     "webApiHostname": "localhost",
@@ -12,3 +17,5 @@
     "callbackUriHpa": "http://localhost:9999/callback/hpa",
     "callbackUriYpa": "http://localhost:9999/callback/ypa"
 }`
+
+Run `npm install` and `node WebApiClient.js`.
