@@ -35,8 +35,6 @@ function init() {
     config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
     config.callbackUriHpa = encodeURI(config.callbackUriHpa);
     config.callbackUriYpa = encodeURI(config.callbackUriYpa);
-    CLIENT_SECRET = config.clientSecret;
-    CLIENT_ID = config.clientId;
     if (config.requireSsl) {
         http = require("https");
     }
@@ -100,7 +98,7 @@ function reqister(mode, delegateHetu, callbackUri, response) {
         var registerPath = '/service/' + mode + '/user/register/' + config.clientId + '/' + delegateHetu + '?requestId=nodeClient&endUserId=nodeEndUser';
 
         // Adding X-AsiointivaltuudetAuthorization header
-        var checksumHeaderValue = headerUtils.xAuthorizationHeader(registerPath);
+        var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, registerPath);
 
         var options = {
             method: 'GET',
@@ -124,6 +122,7 @@ function reqister(mode, delegateHetu, callbackUri, response) {
                 if (res.statusCode === 200) {
                     try {
                         var data = JSON.parse(body);
+                        //Don't do this in production. Don't expose webApiSessionId to the user.
                         response.cookie("webApiSessionId", data.sessionId);
                         resolve({ userId: data.userId, response: response, callbackUri: callbackUri });
                     } catch (e) {
@@ -151,7 +150,7 @@ function redirectToWebApiSelection(args) {
         args.response.writeHead(302, {
             'Location': authorizeUrl
         });
-        args.response.end();    
+        args.response.end();
         resolve();
     });
 }
@@ -208,7 +207,7 @@ function changeCodeToToken(webApiSessionId, code, callbackUri) {
 function getDelegate(args) {
     return new Promise(function (resolve, reject) {
         var resourceUrl = '/service/hpa/api/delegate/' + args.webApiSessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
-        var checksumHeaderValue = headerUtils.xAuthorizationHeader(resourceUrl);
+        var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
             method: 'GET',
@@ -288,7 +287,7 @@ function getAuthorizations(authArgs) {
 function getAuthorization(webApiSessionId, accessToken, principal) {
     return new Promise(function (resolve, reject) {
         var resourceUrl = '/service/hpa/api/authorization/' + webApiSessionId + '/' + principal.personId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
-        var checksumHeaderValue = headerUtils.xAuthorizationHeader(resourceUrl);
+        var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
             method: 'GET',
@@ -338,7 +337,7 @@ function getAuthorization(webApiSessionId, accessToken, principal) {
 function getRoles(args) {
     return new Promise(function (resolve, reject) {
         var resourceUrl = '/service/ypa/api/organizationRoles/' + args.webApiSessionId + '/123456-1' + '?requestId=nodeRequestID&endUserId=nodeEndUser';
-        var checksumHeaderValue = headerUtils.xAuthorizationHeader(resourceUrl);
+        var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
             method: 'GET',
