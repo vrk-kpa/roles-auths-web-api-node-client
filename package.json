@@ -2,6 +2,7 @@
   "name": "web-api-node-client",
   "version": "0.0.1",
   "dependencies": {
+    "cookie-parser": "^1.4.3",
     "express": "^4.10.8",
     "http-proxy": "~1.11",
     "moment": "2.11.2",
