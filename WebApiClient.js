@@ -45,8 +45,9 @@ function init() {
 
 init();
 
-app.get('/register/hpa', function (request, response) {
-    reqister('hpa', config.hetuHpa, config.callbackUriHpa, response).
+app.get('/register/hpa/:hetu', function (request, response) {
+    // test hetu 010180-9026
+    reqister('hpa', request.params.hetu, config.callbackUriHpa, response).
         then(redirectToWebApiSelection).
         catch(function (reason) {
             response.status(500).send(reason);
@@ -68,8 +69,9 @@ app.get('/callback/hpa', function (request, response) {
 
 
 
-app.get('/register/ypa', function (request, response) {
-    reqister('ypa', config.hetuYpa, config.callbackUriYpa, response).
+app.get('/register/ypa/:hetu', function (request, response) {
+    // test hetu 010180-9026
+    reqister('ypa', request.params.hetu, config.callbackUriYpa, response).
         then(redirectToWebApiSelection).
         catch(function (reason) {
             response.status(500).send(reason);
