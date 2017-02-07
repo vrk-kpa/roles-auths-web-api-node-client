@@ -4,8 +4,6 @@
   "dependencies": {
     "cookie-parser": "^1.4.3",
     "express": "^4.10.8",
-    "http-proxy": "~1.11",
-    "moment": "2.11.2",
-    "properties-reader": "0.0.10"
+    "moment": "2.11.2"
   }
 }
