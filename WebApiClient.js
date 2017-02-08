@@ -39,9 +39,10 @@ function init() {
         http = require("https");
     }
     console.log("using the following config:\n" + JSON.stringify(config));
+    app.listen(config.port || 9999, function () {
+        console.log('App listening on port ' + config.port || 9999);
+    });
 }
-
-init();
 
 app.get('/register/hpa/:hetu', function (request, response) {
     // test hetu 010180-9026
@@ -86,10 +87,6 @@ app.get('/callback/ypa', function (request, response) {
         catch(function (reason) {
             response.status(500).send(reason);
         });
-});
-
-app.listen(config.port || 9999, function () {
-    console.log('App listening on port ' + config.port || 9999);
 });
 
 function reqister(mode, delegateHetu, callbackUri, response) {
@@ -380,3 +377,5 @@ function getRoles(args) {
         req.end();
     });
 }
+
+init();
