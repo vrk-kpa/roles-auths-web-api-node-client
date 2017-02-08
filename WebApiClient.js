@@ -33,8 +33,8 @@ var config = {};
 
 function init() {
     config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
-    config.callbackUriHpa = encodeURI(config.callbackUriHpa);
-    config.callbackUriYpa = encodeURI(config.callbackUriYpa);
+    config.callbackUriHpa = encodeURI(config.useSsl ? 'https://' : 'http://' + config.hostname + ':' + config.port + '/callback/hpa');
+    config.callbackUriYpa = encodeURI(config.useSsl ? 'https://' : 'http://' + config.hostname + ':' + config.port + '/callback/ypa');
     if (config.requireSsl) {
         http = require("https");
     }
