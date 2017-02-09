@@ -20,45 +20,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-var http = require('http');;
+var request = require('request');;
 var fs = require('fs');
 
 function getConfigAndStartClient() {
-    var options = {
-        method: 'GET',
-        hostname: 'localhost',
-        port: '8888',
-        path: '/roles-auths-web-api-node-client.json'
-    };
-
-    var req = http.request(options, function (res) {
-        var body = '';
-        res.setEncoding('utf8');
-
-        res.on('data', function (chunk) {
-            body += chunk;
-        });
-
-        res.on('end', function () {
-            if (res.statusCode === 200) {
+    request('http://localhost:8888/roles-auths-web-api-node-client.json',
+        function (error, response, body) {
+            if (!error && response.statusCode === 200) {
                 fs.writeFile('config.json', body, 'utf8', function (err) {
                     if (err) {
                         console.error(err);
                     } else {
                         require("./WebApiClient");
                     }
-                })
+                });
             } else {
+                console.error(error);
                 console.error(body);
             }
         });
-    });
-
-    req.on('error', function (e) {
-        console.error(e.message);
-    });
-
-    req.end();
 }
 
 getConfigAndStartClient();

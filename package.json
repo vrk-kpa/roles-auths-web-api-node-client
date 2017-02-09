@@ -4,6 +4,7 @@
   "dependencies": {
     "cookie-parser": "^1.4.3",
     "express": "^4.10.8",
-    "moment": "2.11.2"
+    "moment": "2.11.2",
+    "request": "^2.79.0"
   }
 }
