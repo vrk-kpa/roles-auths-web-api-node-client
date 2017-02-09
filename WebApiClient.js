@@ -20,7 +20,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-var http = require("http");;
+var request = require("request");
 var url = require("url");
 var fs = require("fs");
 var express = require('express')
@@ -33,11 +33,10 @@ var config = {};
 
 function init() {
     config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
+
     config.callbackUriHpa = encodeURI(config.useSsl ? 'https://' : 'http://' + config.hostname + ':' + config.port + '/callback/hpa');
     config.callbackUriYpa = encodeURI(config.useSsl ? 'https://' : 'http://' + config.hostname + ':' + config.port + '/callback/ypa');
-    if (config.requireSsl) {
-        http = require("https");
-    }
+
     console.log("using the following config:\n" + JSON.stringify(config));
     app.listen(config.port || 9999, function () {
         console.log('App listening on port ' + config.port || 9999);
@@ -99,44 +98,26 @@ function reqister(mode, delegateHetu, callbackUri, response) {
 
         var options = {
             method: 'GET',
-            hostname: config.webApiHostname,
-            port: config.webApiPort,
-            path: registerPath,
+            url: config.webApiUrl + registerPath,
             headers: {
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
             }
         };
 
-        var req = http.request(options, function (res) {
-            var body = '';
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                body += chunk;
-            });
-
-            res.on('end', function () {
-                if (res.statusCode === 200) {
-                    try {
-                        var data = JSON.parse(body);
-                        //Don't do this in production. Don't expose webApiSessionId to the user.
-                        response.cookie("webApiSessionId", data.sessionId);
-                        resolve({ userId: data.userId, response: response, callbackUri: callbackUri });
-                    } catch (e) {
-                        reject(e.stack);
-                    }
-                } else {
-                    reject(body)
+        request(options, function (error, res, body) {
+            if (!error && res.statusCode === 200) {
+                try {
+                    var data = JSON.parse(body);
+                    //Don't do this in production. Don't expose webApiSessionId to the user.
+                    response.cookie("webApiSessionId", data.sessionId);
+                    resolve({ userId: data.userId, response: response, callbackUri: callbackUri });
+                } catch (e) {
+                    reject(e.stack);
                 }
-            });
+            } else {
+                reject(error + body)
+            }
         });
-
-        req.on('error', function (e) {
-            console.error(`problem with request: ${e.message}`);
-            reject(e.stack);
-        });
-
-        req.end();
 
     });
 }
@@ -158,45 +139,28 @@ function changeCodeToToken(webApiSessionId, code, callbackUri) {
             console.log('Exchaning authorization code to access token...');
             var options = {
                 method: 'POST',
-                hostname: config.webApiHostname,
-                port: config.webApiPort,
+                url: config.webApiUrl + '/oauth/token?code=' + code + '&grant_type=authorization_code&redirect_uri=' + callbackUri,
                 headers: {
                     'Authorization': headerUtils.basicAuthorizationHeader(config.clientId, config.apiOauthSecret)
                 },
-                path: '/oauth/token?code=' + code + '&grant_type=authorization_code&redirect_uri=' + callbackUri
             };
-            var req = http.request(options, function (res) {
-                var body = '';
-                res.setEncoding('utf8');
-
-                res.on('data', function (chunk) {
-                    body += chunk;
-                });
-
-                res.on('end', function () {
-                    if (res.statusCode === 200) {
-                        try {
-                            var data = JSON.parse(body);
-                            //{"access_token":"12ea9653-814b-4b1f-a877-4aeecd92d2ba","token_type":"bearer","refresh_token":"77543b3a-8823-49ea-929e-a9b6b63a9403","expires_in":599,"scope":"read write trust"}
-                            var args = {};
-                            args.accessToken = data.access_token;
-                            args.webApiSessionId = webApiSessionId;
-                            resolve(args);
-                        } catch (e) {
-                            console.error(e);
-                            reject(e);
-                        }
-                    } else {
-                        reject(body);
+            request(options, function (error, res, body) {
+                if (!error && res.statusCode === 200) {
+                    try {
+                        var data = JSON.parse(body);
+                        //{"access_token":"12ea9653-814b-4b1f-a877-4aeecd92d2ba","token_type":"bearer","refresh_token":"77543b3a-8823-49ea-929e-a9b6b63a9403","expires_in":599,"scope":"read write trust"}
+                        var args = {};
+                        args.accessToken = data.access_token;
+                        args.webApiSessionId = webApiSessionId;
+                        resolve(args);
+                    } catch (e) {
+                        console.error(e);
+                        reject(e);
                     }
-                });
+                } else {
+                    reject(error + body);
+                }
             });
-
-            req.on('error', function (e) {
-                reject(e.stack);
-            });
-
-            req.end();
         }
     );
 }
@@ -208,50 +172,31 @@ function getDelegate(args) {
         console.log('Get ' + resourceUrl);
         var options = {
             method: 'GET',
-            hostname: config.webApiHostname,
-            port: config.webApiPort,
+            url: config.webApiUrl + resourceUrl,
             headers: {
                 'Authorization': 'Bearer ' + args.accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
             },
-            path: resourceUrl
         };
 
-        var req = http.request(options, function (res) {
-            var body = '';
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                body += chunk;
-            });
-
-            res.on('end', function () {
-                console.log(body);
-                if (res.statusCode === 200) {
-                    try {
-                        var principals = JSON.parse(body);
-                        console.log("Response from " + resourceUrl + ': ' + body);
-                        var result = {
-                            webApiSessionId: args.webApiSessionId,
-                            accessToken: args.accessToken,
-                            principals: principals
-                        };
-                        resolve(result);
-                    } catch (e) {
-                        reject(e.stack);
-                    }
-                } else {
-                    reject(body);
+        request(options, function (error, res, body) {
+            if (!error && res.statusCode === 200) {
+                try {
+                    var principals = JSON.parse(body);
+                    console.log("Response from " + resourceUrl + ': ' + body);
+                    var result = {
+                        webApiSessionId: args.webApiSessionId,
+                        accessToken: args.accessToken,
+                        principals: principals
+                    };
+                    resolve(result);
+                } catch (e) {
+                    reject(e.stack);
                 }
-            });
-
+            } else {
+                reject(error + body);
+            }
         });
-
-        req.on('error', function (e) {
-            reject(e.stack);
-        });
-
-        req.end();
     });
 
 }
@@ -288,46 +233,26 @@ function getAuthorization(webApiSessionId, accessToken, principal) {
         console.log('Get ' + resourceUrl);
         var options = {
             method: 'GET',
-            hostname: config.webApiHostname,
-            port: config.webApiPort,
+            url: config.webApiUrl + resourceUrl,
             headers: {
                 'Authorization': 'Bearer ' + accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-            },
-            path: resourceUrl
+            }
         };
 
-        var req = http.request(options, function (res) {
-            var body = '';
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                body += chunk;
-            });
-
-            res.on('end', function () {
-                if (res.statusCode === 200) {
-                    try {
-                        var data = JSON.parse(body);
-                        data.principal = principal;
-                        resolve(data);
-                    } catch (e) {
-                        reject(e.stack);
-                    }
-                } else {
-                    reject(body)
+        request(options, function (error, res, body) {
+            if (!error && res.statusCode === 200) {
+                try {
+                    var data = JSON.parse(body);
+                    data.principal = principal;
+                    resolve(data);
+                } catch (e) {
+                    reject(e.stack);
                 }
-
-            });
-
+            } else {
+                reject(error + body)
+            }
         });
-
-        req.on('error', function (e) {
-            console.log(`problem with request: ${e.message}`);
-            reject(e.stack);
-        });
-
-        req.end();
     });
 }
 
@@ -338,43 +263,25 @@ function getRoles(args) {
         console.log('Get ' + resourceUrl);
         var options = {
             method: 'GET',
-            hostname: config.webApiHostname,
-            port: config.webApiPort,
+            url: config.webApiUrl + resourceUrl,
             headers: {
                 'Authorization': 'Bearer ' + args.accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
             },
-            path: resourceUrl
         };
 
-        var req = http.request(options, function (res) {
-            var body = '';
-            res.setEncoding('utf8');
-
-            res.on('data', function (chunk) {
-                body += chunk;
-            });
-
-            res.on('end', function () {
-                if (res.statusCode === 200) {
-                    try {
-                        var data = JSON.parse(body);
-                        resolve(data);
-                    } catch (e) {
-                        reject(e.stack);
-                    }
-                } else {
-                    reject("Status from " + resourceUrl + ': ' + res.statusCode);
+        request(options, function (error, res, body) {
+            if (!error && res.statusCode === 200) {
+                try {
+                    var data = JSON.parse(body);
+                    resolve(data);
+                } catch (e) {
+                    reject(e.stack);
                 }
-            });
-
+            } else {
+                reject(error + body);
+            }
         });
-
-        req.on('error', function (e) {
-            reject(e.stack);
-        });
-
-        req.end();
     });
 }
 
