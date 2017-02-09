@@ -1,30 +1,16 @@
-# Pull base image
-FROM ubuntu:latest
+FROM node:6.9-alpine
 
-# Install common tools
-RUN \
-  apt-get update && \
-  apt-get -y install curl && \
-  apt-get -y install vim
+ENV deploy_dir /data00/deploy/
+RUN mkdir -p ${deploy_dir}
+WORKDIR ${deploy_dir}
 
-# Install NodeJs
-RUN \
-   curl -sL https://deb.nodesource.com/setup_4.x | bash - && \
-   apt-get install -y nodejs && \
-   apt-get install -y build-essential
+ADD *.json ${deploy_dir}/
+ADD *.js ${deploy_dir}/
+ADD ./lib/ ${deploy_dir}/lib
 
-# Clean up
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+RUN npm update 
 
-# Deploy project
-WORKDIR /root/
-ADD package.json /root/
-ADD app.js /root/
+EXPOSE 8080
 
-RUN \
-   cd /root/ && \
-   npm update
-
-ENTRYPOINT ["bash"]
+ENTRYPOINT ["node", "./WebApiClient.js"]
 

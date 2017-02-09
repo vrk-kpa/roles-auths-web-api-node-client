@@ -20,27 +20,45 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+var http = require('http');;
+var fs = require('fs');
 
-'use strict';
-var crypto = require("crypto");
-var moment = require("moment");
-var buffer = require('buffer');
-
-function createHeaderUtils() {
-    return {
-        xAuthorizationHeader: function xAuthorizationHeader(clientId, clientSecret, path) {
-            var timestamp = moment().format();
-            var checksum = crypto.createHmac('sha256', clientSecret)
-                .update(path + ' ' + timestamp)
-                .digest('base64');
-            return clientId + ' ' + timestamp + ' ' + checksum;
-        },
-        basicAuthorizationHeader: function (clientId, clientSecret) {
-            var encoded = new Buffer(clientId + ':' + clientSecret).toString('base64');
-            return "Basic " + encoded;
-        }
+function getConfigAndStartClient() {
+    var options = {
+        method: 'GET',
+        hostname: 'localhost',
+        port: '8888',
+        path: '/roles-auths-web-api-node-client.json'
     };
-};
 
+    var req = http.request(options, function (res) {
+        var body = '';
+        res.setEncoding('utf8');
 
-module.exports = createHeaderUtils();
+        res.on('data', function (chunk) {
+            body += chunk;
+        });
+
+        res.on('end', function () {
+            if (res.statusCode === 200) {
+                fs.writeFile('config.json', body, 'utf8', function (err) {
+                    if (err) {
+                        console.error(err);
+                    } else {
+                        require("./WebApiClient");
+                    }
+                })
+            } else {
+                console.error(body);
+            }
+        });
+    });
+
+    req.on('error', function (e) {
+        console.error(e.message);
+    });
+
+    req.end();
+}
+
+getConfigAndStartClient();
