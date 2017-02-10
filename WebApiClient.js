@@ -130,7 +130,7 @@ function register(mode, delegateHetu, callbackUri, response) {
 
 function redirectToWebApiSelection(args) {
     return new Promise(function (resolve, reject) {
-        var authorizeUrl = 'http://' + config.webApiHostname + ':' + config.webApiPort + '/oauth/authorize?client_id=' + config.clientId + '&response_type=code&redirect_uri=' + args.callbackUri + '&user=' + args.userId;
+        var authorizeUrl = config.webApiUrl + '/oauth/authorize?client_id=' + config.clientId + '&response_type=code&redirect_uri=' + args.callbackUri + '&user=' + args.userId;
         args.response.writeHead(302, {
             'Location': authorizeUrl
         });
