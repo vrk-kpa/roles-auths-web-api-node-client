@@ -33,13 +33,14 @@ var config = {};
 
 function init() {
     config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
-
-    config.callbackUriHpa = encodeURI(config.useSsl ? 'https://' : 'http://' + config.hostname + ':' + config.port + '/callback/hpa');
-    config.callbackUriYpa = encodeURI(config.useSsl ? 'https://' : 'http://' + config.hostname + ':' + config.port + '/callback/ypa');
+    var clientBaseUrl = config.useSsl ? 'https://' : 'http://' + config.hostname + ':' + config.port;
+    config.callbackUriHpa = encodeURI(clientBaseUrl + '/callback/hpa');
+    config.callbackUriYpa = encodeURI(clientBaseUrl + '/callback/ypa');
 
     console.log("using the following config:\n" + JSON.stringify(config));
-    app.listen(config.port || 9999, function () {
-        console.log('App listening on port ' + config.port || 9999);
+    app.listen(config.port, function () {
+        var port = config.port;
+        console.log('Browse to ' + clientBaseUrl + '/register/hpa/[TEST_HETU]' + ' or ' + clientBaseUrl + '/register/ypa/[TEST_HETU]');
     });
 }
 
