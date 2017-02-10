@@ -16,3 +16,5 @@ Save your id and secrets to /config.json. Set also other properties.
 }`
 
 Run `npm install` and `node WebApiClient.js`.
+
+To get authorization for a delegate with `[HETU]` go with your browser to register URL. Go to `/register/hpa/[HETU]` for HPA case and go to `/register/ypa/[HETU]` for YPA case.

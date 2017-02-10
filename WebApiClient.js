@@ -46,7 +46,7 @@ function init() {
 
 app.get('/register/hpa/:hetu', function (request, response) {
     // test hetu 010180-9026
-    reqister('hpa', request.params.hetu, config.callbackUriHpa, response).
+    register('hpa', request.params.hetu, config.callbackUriHpa, response).
         then(redirectToWebApiSelection).
         catch(function (reason) {
             console.error(reason);
@@ -72,7 +72,7 @@ app.get('/callback/hpa', function (request, response) {
 
 app.get('/register/ypa/:hetu', function (request, response) {
     // test hetu 010180-9026
-    reqister('ypa', request.params.hetu, config.callbackUriYpa, response).
+    register('ypa', request.params.hetu, config.callbackUriYpa, response).
         then(redirectToWebApiSelection).
         catch(function (reason) {
             console.error(reason);
@@ -93,7 +93,7 @@ app.get('/callback/ypa', function (request, response) {
         });
 });
 
-function reqister(mode, delegateHetu, callbackUri, response) {
+function register(mode, delegateHetu, callbackUri, response) {
     return new Promise(function (resolve, reject) {
         //Registering WEB API session
         var registerPath = '/service/' + mode + '/user/register/' + config.clientId + '/' + delegateHetu + '?requestId=nodeClient&endUserId=nodeEndUser';
