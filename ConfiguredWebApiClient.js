@@ -35,8 +35,7 @@ function getConfigAndStartClient() {
                     }
                 });
             } else {
-                console.error(error);
-                console.error(body);
+                console.error(error || body);
             }
         });
 }
