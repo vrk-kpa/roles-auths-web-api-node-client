@@ -117,6 +117,7 @@ function reqister(mode, delegateHetu, callbackUri, response) {
                     response.cookie("webApiSessionId", data.sessionId);
                     resolve({ userId: data.userId, response: response, callbackUri: callbackUri });
                 } catch (e) {
+                    console.error("Exception thrown while parsing response body: " + body);
                     reject(e.stack);
                 }
             } else {
@@ -159,6 +160,7 @@ function changeCodeToToken(webApiSessionId, code, callbackUri) {
                         args.webApiSessionId = webApiSessionId;
                         resolve(args);
                     } catch (e) {
+                        console.error("Exception thrown while parsing response body: " + body);
                         reject(e.stack);
                     }
                 } else {
@@ -195,6 +197,7 @@ function getDelegate(args) {
                     };
                     resolve(result);
                 } catch (e) {
+                    console.error("Exception thrown while parsing response body: " + body);
                     reject(e.stack);
                 }
             } else {
@@ -222,6 +225,7 @@ function getAuthorizations(authArgs) {
                 }
                 resolve(authorizations)
             } catch (e) {
+                console.error("Exception thrown while parsing response body: " + body);
                 reject(e.stack);
             }
         }).catch(function (reason) {
@@ -251,6 +255,7 @@ function getAuthorization(webApiSessionId, accessToken, principal) {
                     data.principal = principal;
                     resolve(data);
                 } catch (e) {
+                    console.error("Exception thrown while parsing response body: " + body);
                     reject(e.stack);
                 }
             } else {
@@ -280,6 +285,7 @@ function getRoles(args) {
                     var data = JSON.parse(body);
                     resolve(data);
                 } catch (e) {
+                    console.error("Exception thrown while parsing response body: " + body);
                     reject(e.stack);
                 }
             } else {
