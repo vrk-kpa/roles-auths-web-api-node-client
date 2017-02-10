@@ -48,6 +48,7 @@ app.get('/register/hpa/:hetu', function (request, response) {
     reqister('hpa', request.params.hetu, config.callbackUriHpa, response).
         then(redirectToWebApiSelection).
         catch(function (reason) {
+            console.error(reason);
             response.status(500).send(reason);
         });
 });
@@ -61,6 +62,7 @@ app.get('/callback/hpa', function (request, response) {
             response.status(200).send(authorizations);
         }).
         catch(function (reason) {
+            console.error(reason);
             response.status(500).send(reason);
         });
 });
@@ -72,6 +74,7 @@ app.get('/register/ypa/:hetu', function (request, response) {
     reqister('ypa', request.params.hetu, config.callbackUriYpa, response).
         then(redirectToWebApiSelection).
         catch(function (reason) {
+            console.error(reason);
             response.status(500).send(reason);
         });
 });
@@ -84,6 +87,7 @@ app.get('/callback/ypa', function (request, response) {
             response.status(200).send(roles);
         }).
         catch(function (reason) {
+            console.error(reason);
             response.status(500).send(reason);
         });
 });
@@ -115,7 +119,7 @@ function reqister(mode, delegateHetu, callbackUri, response) {
                     reject(e.stack);
                 }
             } else {
-                reject(error + body)
+                reject(error || body)
             }
         });
 
@@ -154,11 +158,10 @@ function changeCodeToToken(webApiSessionId, code, callbackUri) {
                         args.webApiSessionId = webApiSessionId;
                         resolve(args);
                     } catch (e) {
-                        console.error(e);
-                        reject(e);
+                        reject(e.stack);
                     }
                 } else {
-                    reject(error + body);
+                    reject(error || body);
                 }
             });
         }
@@ -194,7 +197,7 @@ function getDelegate(args) {
                     reject(e.stack);
                 }
             } else {
-                reject(error + body);
+                reject(error || body);
             }
         });
     });
@@ -250,7 +253,7 @@ function getAuthorization(webApiSessionId, accessToken, principal) {
                     reject(e.stack);
                 }
             } else {
-                reject(error + body)
+                reject(error || body)
             }
         });
     });
@@ -279,7 +282,7 @@ function getRoles(args) {
                     reject(e.stack);
                 }
             } else {
-                reject(error + body);
+                reject(error || body);
             }
         });
     });
