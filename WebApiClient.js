@@ -39,23 +39,27 @@ function init() {
     var server;
     var clientBaseUrl;
     if (config.ssl) {
-        clientBaseUrl = 'https://' + config.hostname + ':' + config.port;
-        config.callbackUriHpa = encodeURI(clientBaseUrl + '/callback/hpa');
-        config.callbackUriYpa = encodeURI(clientBaseUrl + '/callback/ypa');
+        if (!config.clientBaseUrl) {
+            config.clientBaseUrl = 'https://' + config.hostname + ':' + config.port;
+        }
+        config.callbackUriHpa = encodeURI(config.clientBaseUrl + '/callback/hpa');
+        config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
         var privateKey = fs.readFileSync(config.ssl.privateKey, 'utf8');
         var certificate = fs.readFileSync(config.ssl.certificate, 'utf8');
         var credentials = { key: privateKey, cert: certificate, passphrase: config.ssl.passPhrase };
         server = https.createServer(credentials, app);
     } else {
-        clientBaseUrl = 'http://' + config.hostname + ':' + config.port;
-        config.callbackUriHpa = encodeURI(clientBaseUrl + '/callback/hpa');
-        config.callbackUriYpa = encodeURI(clientBaseUrl + '/callback/ypa');
+        if (!config.clientBaseUrl) {
+            config.clientBaseUrl = 'http://' + config.hostname + ':' + config.port;
+        }
+        config.callbackUriHpa = encodeURI(config.clientBaseUrl + '/callback/hpa');
+        config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
         server = http.createServer(app);
     }
 
     server.listen(config.port, function () {
         var port = config.port;
-        console.log('Browse to ' + clientBaseUrl + '/register/hpa/[TEST_HETU]' + ' or ' + clientBaseUrl + '/register/ypa/[TEST_HETU]');
+        console.log('Browse to ' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]' + ' or ' + config.clientBaseUrl + '/register/ypa/[TEST_HETU]');
     });
 }
 
