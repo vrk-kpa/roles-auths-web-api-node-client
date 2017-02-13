@@ -7,7 +7,6 @@ How to run
 Save your id and secrets to /config.json. Set also other properties.
 
 `{
-    "hostname": "localhost",
     "port": 8904,
     "webApiUrl": "https://asiointivaltuustarkastus.qa.suomi.fi",
     "ssl": {

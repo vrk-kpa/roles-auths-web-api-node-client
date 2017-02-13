@@ -40,7 +40,7 @@ function init() {
     var clientBaseUrl;
     if (config.ssl) {
         if (!config.clientBaseUrl) {
-            config.clientBaseUrl = 'https://' + config.hostname + ':' + config.port;
+            config.clientBaseUrl = 'https://localhost:' + config.port;
         }
         config.callbackUriHpa = encodeURI(config.clientBaseUrl + '/callback/hpa');
         config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
@@ -50,7 +50,7 @@ function init() {
         server = https.createServer(credentials, app);
     } else {
         if (!config.clientBaseUrl) {
-            config.clientBaseUrl = 'http://' + config.hostname + ':' + config.port;
+            config.clientBaseUrl = 'http://localhost:' + config.port;
         }
         config.callbackUriHpa = encodeURI(config.clientBaseUrl + '/callback/hpa');
         config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
