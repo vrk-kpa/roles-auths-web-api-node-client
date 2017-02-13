@@ -121,7 +121,7 @@ function register(mode, delegateHetu, callbackUri, response) {
                     reject(e.stack);
                 }
             } else {
-                reject(error || body)
+                reject(res.toJSON())
             }
         });
 
@@ -164,7 +164,7 @@ function changeCodeToToken(webApiSessionId, code, callbackUri) {
                         reject(e.stack);
                     }
                 } else {
-                    reject(error || body);
+                    reject(res.toJSON());
                 }
             });
         }
@@ -201,7 +201,7 @@ function getDelegate(args) {
                     reject(e.stack);
                 }
             } else {
-                reject(error || body);
+                reject(res.toJSON());
             }
         });
     });
@@ -259,7 +259,7 @@ function getAuthorization(webApiSessionId, accessToken, principal) {
                     reject(e.stack);
                 }
             } else {
-                reject(error || body)
+                reject(res.toJSON())
             }
         });
     });
@@ -289,7 +289,7 @@ function getRoles(args) {
                     reject(e.stack);
                 }
             } else {
-                reject(error || body);
+                reject(res.toJSON());
             }
         });
     });
