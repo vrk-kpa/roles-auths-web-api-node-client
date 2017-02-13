@@ -9,7 +9,12 @@ Save your id and secrets to /config.json. Set also other properties.
 `{
     "hostname": "localhost",
     "port": 8904,
-    "webApiUrl": "http://localhost:8102",
+    "webApiUrl": "https://asiointivaltuustarkastus.qa.suomi.fi",
+    "ssl": {
+        "privateKey": "[MY_PRIVATE_KEY_PATH]",
+        "certificate": "[MY_CERTIFICATE_PATH]",
+        "passPhrase": "[MY_PASS_PHRASE]"
+    },
     "clientId": "[MY_CLIENT_ID]",
     "clientSecret": "[MY_CLIENT_SECRET]",
     "apiOauthSecret": "[MY_OAUTH_API_SECRET]"

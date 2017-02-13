@@ -20,12 +20,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-var request = require("request");
-var url = require("url");
-var fs = require("fs");
+var request = require('request');
+var url = require('url');
+var fs = require('fs');
+var http = require('http');
+var https = require('https');
 var express = require('express')
 var cookieParser = require('cookie-parser')
-var headerUtils = require("./lib/HeaderUtils.js");
+var headerUtils = require('./lib/HeaderUtils.js');
 
 var app = express();
 app.use(cookieParser());
@@ -33,12 +35,25 @@ var config = {};
 
 function init() {
     config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
-    var clientBaseUrl = config.useSsl ? 'https://' : 'http://' + config.hostname + ':' + config.port;
-    config.callbackUriHpa = encodeURI(clientBaseUrl + '/callback/hpa');
-    config.callbackUriYpa = encodeURI(clientBaseUrl + '/callback/ypa');
-
     console.log("using the following config:\n" + JSON.stringify(config));
-    app.listen(config.port, function () {
+    var server;
+    var clientBaseUrl;
+    if (config.ssl) {
+        clientBaseUrl = 'https://' + config.hostname + ':' + config.port;
+        config.callbackUriHpa = encodeURI(clientBaseUrl + '/callback/hpa');
+        config.callbackUriYpa = encodeURI(clientBaseUrl + '/callback/ypa');
+        var privateKey = fs.readFileSync(config.ssl.privateKey, 'utf8');
+        var certificate = fs.readFileSync(config.ssl.certificate, 'utf8');
+        var credentials = { key: privateKey, cert: certificate, passphrase: config.ssl.passPhrase };
+        server = https.createServer(credentials, app);
+    } else {
+        clientBaseUrl = 'http://' + config.hostname + ':' + config.port;
+        config.callbackUriHpa = encodeURI(clientBaseUrl + '/callback/hpa');
+        config.callbackUriYpa = encodeURI(clientBaseUrl + '/callback/ypa');
+        server = http.createServer(app);
+    }
+
+    server.listen(config.port, function () {
         var port = config.port;
         console.log('Browse to ' + clientBaseUrl + '/register/hpa/[TEST_HETU]' + ' or ' + clientBaseUrl + '/register/ypa/[TEST_HETU]');
     });
@@ -50,7 +65,7 @@ app.get('/register/hpa/:hetu', function (request, response) {
         then(redirectToWebApiSelection).
         catch(function (reason) {
             console.error(reason);
-            response.status(500).send(reason);
+            response.status(500).send("Failed to register HPA session.");
         });
 });
 
@@ -64,7 +79,7 @@ app.get('/callback/hpa', function (request, response) {
         }).
         catch(function (reason) {
             console.error(reason);
-            response.status(500).send(reason);
+            response.status(500).send("Failed to get authorization.");
         });
 });
 
@@ -76,7 +91,7 @@ app.get('/register/ypa/:hetu', function (request, response) {
         then(redirectToWebApiSelection).
         catch(function (reason) {
             console.error(reason);
-            response.status(500).send(reason);
+            response.status(500).send("Failed to register YPA session.");
         });
 });
 
@@ -89,7 +104,7 @@ app.get('/callback/ypa', function (request, response) {
         }).
         catch(function (reason) {
             console.error(reason);
-            response.status(500).send(reason);
+            response.status(500).send("Failed to get company roles.");
         });
 });
 
