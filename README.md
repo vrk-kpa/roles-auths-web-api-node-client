@@ -1,6 +1,6 @@
 # roles-auths-web-api-node-client
 
-Client for Asiointivaltuudet Web API made with Node.js.
+Example code how to connect Asiointivaltuudet Web API. This is example code and it should not be used in production environment.
 
 How to run
 ----------
