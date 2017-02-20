@@ -33,6 +33,10 @@ var app = express();
 app.use(cookieParser());
 var config = {};
 
+/**
+ * Initializes applicaition with properties from config.json.
+ * 
+ */
 function init() {
     config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
     console.log("using the following config:\n" + JSON.stringify(config));
@@ -63,6 +67,13 @@ function init() {
     });
 }
 
+/**
+ * Resource for registering Web API HPA session for a user who will be acting as the delegate. 
+ * First, function makes backend call to Web API to register the delegate. Then, it redirects
+ * user's browser to the Web API selection UI.
+ * 
+ * :hetu is SSN of the delegate. That is, the authenticated user.
+ */
 app.get('/register/hpa/:hetu', function (request, response) {
     // test hetu 010180-9026
     register('hpa', request.params.hetu, config.callbackUriHpa, response).
@@ -73,6 +84,11 @@ app.get('/register/hpa/:hetu', function (request, response) {
         });
 });
 
+/**
+ * Resource for handling return from Web API selection UI. First changes OAuth code to OAuth token 
+ * with Web API backend. Then using the token gets selected principal(s) from delegate Web API 
+ * resource. Finally, gets and returns authorization information of principals.
+ */
 app.get('/callback/hpa', function (request, response) {
     var urlParts = url.parse(request.url, true);
     changeCodeToToken(request.cookies.webApiSessionId, urlParts.query.code, config.callbackUriHpa).
@@ -87,8 +103,13 @@ app.get('/callback/hpa', function (request, response) {
         });
 });
 
-
-
+/**
+ * Resource for registering Web API YPA session for a user who will be acting as the delegate. 
+ * First, function makes backend call to Web API to register the delegate. Then, it redirects
+ * user's browser to the Web API selection UI.
+ * 
+ * :hetu is SSN of the delegate. That is, the authenticated user.
+ */
 app.get('/register/ypa/:hetu', function (request, response) {
     // test hetu 010180-9026
     register('ypa', request.params.hetu, config.callbackUriYpa, response).
@@ -99,6 +120,10 @@ app.get('/register/ypa/:hetu', function (request, response) {
         });
 });
 
+/**
+ * Resource for handling return from Web API selection UI. First changes OAuth code to OAuth token 
+ * with Web API backend. Then using the token gets and returns the company roles of the delegate.
+ */
 app.get('/callback/ypa', function (request, response) {
     var urlParts = url.parse(request.url, true);
     changeCodeToToken(request.cookies.webApiSessionId, urlParts.query.code, config.callbackUriYpa).
@@ -112,6 +137,15 @@ app.get('/callback/ypa', function (request, response) {
         });
 });
 
+/**
+ * Function to handle registeration to the Web API backend.
+ * 
+ * @param {string} mode - Eather `HPA` or `YPA`.
+ * @param {string} delegateHetu - SSN of the delegate.
+ * @param {string} callbackUri - The location where the user's browser is redirected after the selection of principal.
+ * @param {Object} response - Response to the browser.
+ * @return {Promise}
+ */
 function register(mode, delegateHetu, callbackUri, response) {
     return new Promise(function (resolve, reject) {
         //Registering WEB API session
@@ -147,6 +181,15 @@ function register(mode, delegateHetu, callbackUri, response) {
     });
 }
 
+/**
+ * Redirects user's browser to the Web API selection UI.
+ * 
+ * @param {Object} args - function arguments: 
+ * {string} userId - id returned from Web API registration resource, 
+ * {Object} response - response for the user's browser, 
+ * {string} callbackUri - URL where user is redirected after the selection.
+ * @return {Promise}
+ */
 function redirectToWebApiSelection(args) {
     return new Promise(function (resolve, reject) {
         var authorizeUrl = config.webApiUrl + '/oauth/authorize?client_id=' + config.clientId + '&response_type=code&redirect_uri=' + args.callbackUri + '&user=' + args.userId;
@@ -158,6 +201,14 @@ function redirectToWebApiSelection(args) {
     });
 }
 
+/**
+ * Changes OAuth code to token with Web API backend.
+ * 
+ * @param {string} webApiSessionId - Web API session ID.
+ * @param {string} code - OAuth code from Web API callback URL
+ * @param {string} callbackUri -  URI where the user was redirected after the selection.
+ * @return {Promise}
+ */
 function changeCodeToToken(webApiSessionId, code, callbackUri) {
     return new Promise(
         (resolve, reject) => {
@@ -190,6 +241,13 @@ function changeCodeToToken(webApiSessionId, code, callbackUri) {
     );
 }
 
+/**
+ * Makes delegate call to the Web API backed. Get the selected principal(s) with the call.
+ * @param {object} args - Function arguments:
+ * {string} accessToken - OAuth access token,
+ * {string} webApiSessionId - Web API session id.
+ * @return {Promise}
+ */
 function getDelegate(args) {
     return new Promise(function (resolve, reject) {
         var resourceUrl = '/service/hpa/api/delegate/' + args.webApiSessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
@@ -227,6 +285,16 @@ function getDelegate(args) {
 
 }
 
+/**
+ * Makes authorization calls to the Web API backend, one for each selected 
+ * principal. Get the authorizations for the principals.
+ * 
+ * @param {object} authArgs - Function arguments:
+ * {string} accessToken - OAuth access token,
+ * {string} webApiSessionId - Web API session id.
+ * {array} principals - principal objects. 
+ * @return {Promise}
+ */
 function getAuthorizations(authArgs) {
     return new Promise(function (resolve, reject) {
         var promises = [];
@@ -253,6 +321,14 @@ function getAuthorizations(authArgs) {
     });
 }
 
+/**
+ * Makes an authorization call to the Web API backend.
+ * 
+ * @param {string} webApiSessionId - Web API session ID.
+ * @param {string} accessToken - OAuth access token.
+ * @param {Object} principal - principal. 
+ * @return {Promise}
+ */
 function getAuthorization(webApiSessionId, accessToken, principal) {
     return new Promise(function (resolve, reject) {
         var resourceUrl = '/service/hpa/api/authorization/' + webApiSessionId + '/' + principal.personId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
@@ -284,6 +360,14 @@ function getAuthorization(webApiSessionId, accessToken, principal) {
     });
 }
 
+/**
+ * Gets company roles from Web API backend.
+ * 
+ * @param {object} args - Function arguments:
+ * {string} accessToken - OAuth access token,
+ * {string} webApiSessionId - Web API session id.
+ * @return {Promise}
+ */
 function getRoles(args) {
     return new Promise(function (resolve, reject) {
         var resourceUrl = '/service/ypa/api/organizationRoles/' + args.webApiSessionId + '/123456-1' + '?requestId=nodeRequestID&endUserId=nodeEndUser';
