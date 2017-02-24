@@ -9,6 +9,6 @@ ADD *.json ${deploy_dir}/
 ADD *.js ${deploy_dir}/
 ADD ./lib/ ${deploy_dir}/lib
 
-EXPOSE 8904
+EXPOSE 8080
 
 ENTRYPOINT ["node", "./ConfiguredWebApiClient.js"]
