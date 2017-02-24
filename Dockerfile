@@ -11,4 +11,4 @@ ADD ./lib/ ${deploy_dir}/lib
 
 EXPOSE 8080
 
-ENTRYPOINT ["node", "./ConfiguredWebApiClient.js"]
+ENTRYPOINT ["node", "./ConfiguredWebApiClient.js", "http://10.35.33.66:8889/roles-auths-web-api-node-client-itest.json"]
