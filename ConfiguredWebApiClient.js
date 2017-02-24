@@ -30,7 +30,7 @@ function getConfigAndStartClient() {
     request(configUrl,
         function (error, response, body) {
             if (!error && response.statusCode === 200) {
-                fks.writeFile('config.json', body, 'utf8', function (err) {
+                fs.writeFile('config.json', body, 'utf8', function (err) {
                     if (err) {
                         console.error(err);
                     } else {
