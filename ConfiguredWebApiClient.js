@@ -27,6 +27,7 @@ var process = require('process');
 function getConfigAndStartClient() {
     //http://localhost:8888/roles-auths-web-api-node-client.json
     var configUrl = getConfigUrl();
+    console.log("Loading config.json from " + configUrl);
     request(configUrl,
         function (error, response, body) {
             if (!error && response.statusCode === 200) {
