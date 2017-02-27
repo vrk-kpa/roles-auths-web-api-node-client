@@ -1,5 +1,8 @@
 FROM node:6.9-alpine
 
+RUN apk upgrade --update && \
+    apk add --update curl ca-certificates bash
+
 ENV deploy_dir /data00/deploy/
 RUN mkdir -p ${deploy_dir}
 WORKDIR ${deploy_dir}
