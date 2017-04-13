@@ -370,7 +370,7 @@ function getAuthorization(webApiSessionId, accessToken, principal) {
  */
 function getRoles(args) {
     return new Promise(function (resolve, reject) {
-        var resourceUrl = '/service/ypa/api/organizationRoles/' + args.webApiSessionId + '/123456-1' + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+        var resourceUrl = '/service/ypa/api/organizationRoles/' + args.webApiSessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
