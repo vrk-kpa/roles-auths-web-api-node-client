@@ -6,6 +6,9 @@
     "type": "git",
     "url": "git+https://github.com/vrk-kpa/roles-auths-web-api-node-client.git"
   },
+  "jshintConfig": {
+    "esversion": 6
+  },
   "dependencies": {
     "cookie-parser": "^1.4.3",
     "express": "^4.10.8",

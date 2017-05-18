@@ -20,7 +20,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-var request = require('request');;
+var request = require('request');
 var fs = require('fs');
 var process = require('process');
 
@@ -46,7 +46,7 @@ function getConfigAndStartClient() {
 
 function getConfigUrl() {
     if(process.argv.length < 3) {
-        console.info('Usage: node ' + process.argv[1] + " URL_TO_CONFIG")
+        console.info('Usage: node ' + process.argv[1] + " URL_TO_CONFIG");
         process.exit(0);
     }
     return process.argv[2];

@@ -25,8 +25,8 @@ var url = require('url');
 var fs = require('fs');
 var http = require('http');
 var https = require('https');
-var express = require('express')
-var cookieParser = require('cookie-parser')
+var express = require('express');
+var cookieParser = require('cookie-parser');
 var headerUtils = require('./lib/HeaderUtils.js');
 
 var app = express();
@@ -174,7 +174,7 @@ function register(mode, delegateHetu, callbackUri, response) {
                     reject(e.stack);
                 }
             } else {
-                reject(res.toJSON())
+                reject(res.toJSON());
             }
         });
 
@@ -310,7 +310,7 @@ function getAuthorizations(authArgs) {
                     }
                     authorizations.push(values[j]);
                 }
-                resolve(authorizations)
+                resolve(authorizations);
             } catch (e) {
                 console.error("Exception thrown while parsing response body: " + body);
                 reject(e.stack);
@@ -354,7 +354,7 @@ function getAuthorization(webApiSessionId, accessToken, principal) {
                     reject(e.stack);
                 }
             } else {
-                reject(res.toJSON())
+                reject(res.toJSON());
             }
         });
     });
