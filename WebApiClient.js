@@ -61,7 +61,7 @@ function init() {
 
     server.listen(config.port, function () {
         var port = config.port;
-        console.log('Browse to ' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]' + ' or ' + config.clientBaseUrl + '/register/ypa/[TEST_HETU]');
+        console.log('\nBrowse to:\n\n' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]' + ' or\n' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]?askIssue=true' + ' or\n' + config.clientBaseUrl + '/register/ypa/[TEST_HETU]');
     });
 }
 
@@ -162,7 +162,7 @@ app.get('/register/ypa/:hetu', function (request, response) {
  */
 app.get('/callback/ypa', function (request, response) {
     var urlParts = url.parse(request.url, true);
-    changeCodeToToken(request.cookies.webApiSessionId, urlParts.query.code, config.callbackUriYpa).
+    changeCodeToToken(request.cookies.webApiSessionId, urlParts.query.code, '', config.callbackUriYpa).
         then(getRoles).
         then(function (roles) {
             response.status(200).send(roles);
