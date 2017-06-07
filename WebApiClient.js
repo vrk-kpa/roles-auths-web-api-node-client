@@ -34,7 +34,7 @@ app.use(cookieParser());
 var config = {};
 
 /**
- * Initializes applicaition with properties from config.json.
+ * Initializes application with properties from config.json.
  * 
  */
 function init() {
@@ -46,8 +46,6 @@ function init() {
         if (!config.clientBaseUrl) {
             config.clientBaseUrl = 'https://localhost:' + config.port;
         }
-        config.callbackUriHpa = encodeURI(config.clientBaseUrl + '/callback/hpa');
-        config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
         var privateKey = fs.readFileSync(config.ssl.privateKey, 'utf8');
         var certificate = fs.readFileSync(config.ssl.certificate, 'utf8');
         var credentials = { key: privateKey, cert: certificate, passphrase: config.ssl.passPhrase };
@@ -56,10 +54,10 @@ function init() {
         if (!config.clientBaseUrl) {
             config.clientBaseUrl = 'http://localhost:' + config.port;
         }
-        config.callbackUriHpa = encodeURI(config.clientBaseUrl + '/callback/hpa');
-        config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
         server = http.createServer(app);
     }
+    config.callbackUriHpa = encodeURI(config.clientBaseUrl + '/callback/hpa');
+    config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
 
     server.listen(config.port, function () {
         var port = config.port;
@@ -71,12 +69,19 @@ function init() {
  * Resource for registering Web API HPA session for a user who will be acting as the delegate. 
  * First, function makes backend call to Web API to register the delegate. Then, it redirects
  * user's browser to the Web API selection UI.
+ *
+ * If query parameter ?askIssue=true is added to the URL, issue URI will be asked after returning
+ * from the selection UI.
  * 
  * :hetu is SSN of the delegate. That is, the authenticated user.
  */
 app.get('/register/hpa/:hetu', function (request, response) {
     // test hetu 010180-9026
-    register('hpa', request.params.hetu, config.callbackUriHpa, response).
+    var callbackUri = config.callbackUriHpa;
+    if(request.query.askIssue && request.query.askIssue === 'true') {
+        callbackUri += "?askIssue=true";
+    }
+    register('hpa', request.params.hetu, callbackUri, response).
         then(redirectToWebApiSelection).
         catch(function (reason) {
             console.error(reason);
@@ -85,22 +90,53 @@ app.get('/register/hpa/:hetu', function (request, response) {
 });
 
 /**
- * Resource for handling return from Web API selection UI. First changes OAuth code to OAuth token 
+ * Resource for handling return from Web API selection UI.
+ *
+ * If callback URI contains query parameter askIssue=true, issue form is presented before proceeding
+ * to the delegate and authorization calls.
+ *
+ * After this check, OAuth code is changed to OAuth token
  * with Web API backend. Then using the token gets selected principal(s) from delegate Web API 
  * resource. Finally, gets and returns authorization information of principals.
  */
 app.get('/callback/hpa', function (request, response) {
     var urlParts = url.parse(request.url, true);
-    changeCodeToToken(request.cookies.webApiSessionId, urlParts.query.code, config.callbackUriHpa).
-        then(getDelegate).
-        then(getAuthorizations).
-        then(function (authorizations) {
-            response.status(200).send(authorizations);
-        }).
-        catch(function (reason) {
-            console.error(reason);
-            response.status(500).send("Failed to get authorization.");
-        });
+    var callbackUri = config.callbackUriHpa;
+    var issue = '';
+    if(urlParts.query.askIssue && urlParts.query.askIssue === 'true' && !urlParts.query.issue ) {
+       var askIssueTemplate =
+            "<html>\n"+
+            "    <head><title>Enter issue URI</title></head>\n"+
+            "    <body>\n"+
+            "        <form method='GET' action='/callback/hpa'>\n"+
+            "           Issue URI:<br/>\n"+
+            "           <input name='issue' type='text'/>\n"+
+            "           <input name='code' type='hidden' value='"+urlParts.query.code+"'/>\n"+
+            "           <input name='askIssue' type='hidden' value='true'/>\n"+
+            "           <input type='submit' value='Submit'/>\n"+
+            "        </form>\n"+
+            "    </body>\n"+
+            "</html>\n";
+        response.status(200).send(askIssueTemplate)
+    } else {
+        if(urlParts.query.askIssue && urlParts.query.askIssue === 'true') {
+            callbackUri += "?askIssue=true";
+        }
+        if(urlParts.query.issue && urlParts.query.issue !== '') {
+            issue = encodeURIComponent(urlParts.query.issue);
+            callbackUri += "&issue="+issue;
+        }
+        changeCodeToToken(request.cookies.webApiSessionId, urlParts.query.code, issue, callbackUri).
+            then(getDelegate).
+            then(getAuthorizations).
+            then(function (authorizations) {
+                response.status(200).send(authorizations);
+            }).
+            catch(function (reason) {
+                console.error(reason);
+                response.status(500).send("Failed to get authorization.");
+            });
+    }
 });
 
 /**
@@ -205,14 +241,15 @@ function redirectToWebApiSelection(args) {
  * Changes OAuth code to token with Web API backend.
  * 
  * @param {string} webApiSessionId - Web API session ID.
- * @param {string} code - OAuth code from Web API callback URL
+ * @param {string} code - OAuth code from Web API callback URL.
+ * @param {string} issue - Issue URI.
  * @param {string} callbackUri -  URI where the user was redirected after the selection.
  * @return {Promise}
  */
-function changeCodeToToken(webApiSessionId, code, callbackUri) {
+function changeCodeToToken(webApiSessionId, code, issue, callbackUri) {
     return new Promise(
         (resolve, reject) => {
-            console.log('Exchaning authorization code to access token...');
+            console.log('Exchanging authorization code to access token...');
             var options = {
                 method: 'POST',
                 url: config.webApiUrl + '/oauth/token?code=' + code + '&grant_type=authorization_code&redirect_uri=' + callbackUri,
@@ -228,6 +265,9 @@ function changeCodeToToken(webApiSessionId, code, callbackUri) {
                         var args = {};
                         args.accessToken = data.access_token;
                         args.webApiSessionId = webApiSessionId;
+                        if(issue && issue !== '') {
+                            args.issue = issue;
+                        }
                         resolve(args);
                     } catch (e) {
                         console.error("Exception thrown while parsing response body: " + body);
@@ -246,6 +286,7 @@ function changeCodeToToken(webApiSessionId, code, callbackUri) {
  * @param {object} args - Function arguments:
  * {string} accessToken - OAuth access token,
  * {string} webApiSessionId - Web API session id.
+ * {string} issue - Issue URI.
  * @return {Promise}
  */
 function getDelegate(args) {
@@ -270,6 +311,7 @@ function getDelegate(args) {
                     var result = {
                         webApiSessionId: args.webApiSessionId,
                         accessToken: args.accessToken,
+                        issue: args.issue,
                         principals: principals
                     };
                     resolve(result);
@@ -292,6 +334,7 @@ function getDelegate(args) {
  * @param {object} authArgs - Function arguments:
  * {string} accessToken - OAuth access token,
  * {string} webApiSessionId - Web API session id.
+ * {string} issue - Issue URI.
  * {array} principals - principal objects. 
  * @return {Promise}
  */
@@ -299,7 +342,7 @@ function getAuthorizations(authArgs) {
     return new Promise(function (resolve, reject) {
         var promises = [];
         for (var i = 0; i < authArgs.principals.length; i++) {
-            promises.push(getAuthorization(authArgs.webApiSessionId, authArgs.accessToken, authArgs.principals[i]));
+            promises.push(getAuthorization(authArgs.webApiSessionId, authArgs.accessToken, authArgs.principals[i], authArgs.issue || ''));
         }
         Promise.all(promises).then(function (values) {
             var authorizations = [];
@@ -326,12 +369,16 @@ function getAuthorizations(authArgs) {
  * 
  * @param {string} webApiSessionId - Web API session ID.
  * @param {string} accessToken - OAuth access token.
- * @param {Object} principal - principal. 
+ * @param {Object} principal - principal.
+ * @param {string} issue - Issue URI.
  * @return {Promise}
  */
-function getAuthorization(webApiSessionId, accessToken, principal) {
+function getAuthorization(webApiSessionId, accessToken, principal, issue) {
     return new Promise(function (resolve, reject) {
         var resourceUrl = '/service/hpa/api/authorization/' + webApiSessionId + '/' + principal.personId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+        if(issue && issue !== '') {
+            resourceUrl += "&issues="+issue;
+        }
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
