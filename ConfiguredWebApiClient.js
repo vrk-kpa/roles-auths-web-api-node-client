@@ -20,11 +20,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-var request = require('request');;
+var request = require('request');
 var fs = require('fs');
+var process = require('process');
 
 function getConfigAndStartClient() {
-    request('http://localhost:8888/roles-auths-web-api-node-client.json',
+    //http://localhost:8888/roles-auths-web-api-node-client.json
+    var configUrl = getConfigUrl();
+    console.log("Loading config.json from " + configUrl);
+    request(configUrl,
         function (error, response, body) {
             if (!error && response.statusCode === 200) {
                 fs.writeFile('config.json', body, 'utf8', function (err) {
@@ -38,6 +42,14 @@ function getConfigAndStartClient() {
                 console.error(error || body);
             }
         });
+}
+
+function getConfigUrl() {
+    if(process.argv.length < 3) {
+        console.info('Usage: node ' + process.argv[1] + " URL_TO_CONFIG");
+        process.exit(0);
+    }
+    return process.argv[2];
 }
 
 getConfigAndStartClient();
