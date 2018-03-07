@@ -11,5 +11,11 @@
     "express": "^4.10.8",
     "moment": "2.11.2",
     "request": "^2.79.0"
+  },
+  "devDependencies": {
+    "sonar-scanner": "^3.0.3"
+  },
+  "scripts": {
+    "sonar-scanner": "node_modules/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=roles-auths-web-api-node-client -Dsonar.sources=."
   }
 }

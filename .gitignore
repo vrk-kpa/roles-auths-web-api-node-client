@@ -2,3 +2,5 @@
 /.vscode
 config.json
 *.iml
+dependency-check-report.xml
+.scannerwork/
