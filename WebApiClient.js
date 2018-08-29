@@ -28,6 +28,8 @@ var https = require('https');
 var express = require('express');
 var cookieParser = require('cookie-parser');
 var headerUtils = require('./lib/HeaderUtils.js');
+const uuidv4 = require('uuid/v4');
+var requestID = "";
 
 var app = express();
 app.use(cookieParser());
@@ -78,6 +80,8 @@ app.get('/register/hpa/:hetu', function (request, response) {
     // test hetu 010180-9026
     console.log("/register/hpa/:hetu");
     var callbackUri = config.callbackUriHpa;
+    requestID = uuidv4();
+    console.log("RequestID: " + requestID);
     if(request.query.askIssue && request.query.askIssue === 'true') {
         callbackUri += "?askIssue=true";
     }
@@ -100,6 +104,8 @@ app.get('/register/hpalist/:hetu', function (request, response) {
     // test hetu 010180-9026
     console.log("/register/hpalist/:hetu");
     var callbackUri = config.callbackUriHpalist;
+    requestID = uuidv4();
+    console.log("RequestID: " + requestID);
     if(request.query.getList && request.query.getList === 'true') {
         callbackUri = config.callbackUriHpalist;
         callbackUri += "?getList=true";
@@ -198,6 +204,8 @@ app.get('/callback/hpalist', function (request, response) {
  */
 app.get('/register/ypa/:hetu', function (request, response) {
     // test hetu 010180-9026
+    requestID = uuidv4();
+    console.log("RequestID: " + requestID);
     register('ypa', request.params.hetu, config.callbackUriYpa, response).
         then(redirectToWebApiSelection).
         catch(function (reason) {
@@ -235,7 +243,7 @@ app.get('/callback/ypa', function (request, response) {
 function register(mode, delegateHetu, callbackUri, response) {
     return new Promise(function (resolve, reject) {
         //Registering WEB API session
-        var registerPath = '/service/' + mode + '/user/register/' + config.clientId + '/' + delegateHetu + '?requestId=nodeClient&endUserId=nodeEndUser';
+        var registerPath = '/service/' + mode + '/user/register/' + config.clientId + '/' + delegateHetu + '?requestId=' + requestID + '&endUserId=nodeEndUser';
 
         // Adding X-AsiointivaltuudetAuthorization header
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, registerPath);
@@ -341,7 +349,7 @@ function changeCodeToToken(webApiSessionId, code, issue, callbackUri) {
  */
 function getDelegate(args) {
     return new Promise(function (resolve, reject) {
-        var resourceUrl = '/service/hpa/api/delegate/' + args.webApiSessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+        var resourceUrl = '/service/hpa/api/delegate/' + args.webApiSessionId + '?requestId=' + requestID + '&endUserId=nodeEndUser';
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
@@ -425,7 +433,7 @@ function getAuthorizations(authArgs) {
  */
 function getAuthorization(webApiSessionId, accessToken, principal, issue) {
     return new Promise(function (resolve, reject) {
-        var resourceUrl = '/service/hpa/api/authorization/' + webApiSessionId + '/' + principal.personId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+        var resourceUrl = '/service/hpa/api/authorization/' + webApiSessionId + '/' + principal.personId + '?requestId=' + requestID + '&endUserId=nodeEndUser';
         if(issue && issue !== '') {
             resourceUrl += "&issues="+issue;
         }
@@ -506,7 +514,7 @@ function getAuthorizationslist(authArgs) {
  */
 function getAuthorizationlist(webApiSessionId, accessToken, principal, issue) {
     return new Promise(function (resolve, reject) {
-        var resourceUrl = '/service/hpa/api/authorizationlist/' + webApiSessionId + '/' + principal.personId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+        var resourceUrl = '/service/hpa/api/authorizationlist/' + webApiSessionId + '/' + principal.personId + '?requestId=' + requestID + '&endUserId=nodeEndUser';
         if(issue && issue !== '') {
             resourceUrl += "&issues="+issue;
         }
@@ -548,7 +556,7 @@ function getAuthorizationlist(webApiSessionId, accessToken, principal, issue) {
  */
 function getRoles(args) {
     return new Promise(function (resolve, reject) {
-        var resourceUrl = '/service/ypa/api/organizationRoles/' + args.webApiSessionId + '?requestId=nodeRequestID&endUserId=nodeEndUser';
+        var resourceUrl = '/service/ypa/api/organizationRoles/' + args.webApiSessionId + '?requestId=' + requestID + '&endUserId=nodeEndUser';
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
