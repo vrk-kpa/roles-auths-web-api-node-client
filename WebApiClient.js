@@ -62,7 +62,7 @@ function init() {
     config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
 
     server.listen(config.port, function () {
-        console.log('\nBrowse to:\n\n' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]' + ' or\n' + config.clientBaseUrl + '/register/hpalist/[TEST_HETU]' + ' or\n' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]?askIssue=true' + ' or\n' + config.clientBaseUrl + '/register/ypa/[TEST_HETU]');
+        console.log('\nBrowse to:\n\n' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]' + ' or\n' + config.clientBaseUrl + '/register/hpalist/[TEST_HETU]' + ' or\n' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]?askIssue=true' + ' or\n' + config.clientBaseUrl + '/register/ypa/[TEST_HETU]'+ ' or\n' + config.clientBaseUrl + '/rest/authorization/[DELEGATE_HETU]/[PRINCIPAL_HETU]');
     });
 }
 
@@ -117,6 +117,70 @@ app.get('/register/hpalist/:hetu', function (request, response) {
         response.status(500).send("Failed to register HPA session.");
     });
 });
+
+
+
+/**
+ * Resource for handling authorization REST requests.
+ *
+ * Usage: https://localhost:8904/rest/authorization/100871-998D?principal=010403A998U
+ *
+ * TODO: issue parameter handling
+ */
+app.get('/rest/authorization/:delegate', function (request, response) {
+    console.log("/rest/authorization/");
+    requestID = uuidv4();
+    console.log("RequestID: " + requestID);
+    var delegateId = request.params.delegate;
+    var principalId = request.query.principal;
+    console.log("Delegate: " + delegateId);
+    console.log("Principal: " + principalId);
+
+    getRestAuthorization(delegateId, principalId, "").
+    then(function (data) {
+        response.status(200).send(data);
+    }).
+    catch(function (reason) {
+        console.error(reason);
+        response.status(500).send("Failed to get authorization.");
+    });
+
+});
+
+function getRestAuthorization(delegateId, principalId, issue) {
+    return new Promise(function (resolve, reject) {
+        var resourceUrl = '/service/rest/hpa/authorization/' + config.clientId + '/' + delegateId + '/' + principalId + '?requestId=' + requestID;
+        var issue = '';
+            if(issue && issue !== '') {
+                resourceUrl += "&issues="+issue;
+            }
+            var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.restApiKey, resourceUrl);
+            console.log('Get ' + resourceUrl);
+            var options = {
+                method: 'GET',
+                url: config.webApiUrl + resourceUrl,
+                headers: {
+                    'X-AsiointivaltuudetAuthorization': checksumHeaderValue,
+                    'X-userId': 'rova-demo-user'
+                    }
+                };
+
+                request(options, function (error, res, body) {
+                    if (!error && res.statusCode === 200) {
+                        try {
+                            var data = JSON.parse(body);
+                            console.log("Response from " + resourceUrl + ': ' + body);
+                            resolve(data);
+                        } catch (e) {
+                            console.error("Exception thrown while parsing response body: " + body);
+                            reject(e.stack);
+                        }
+                    } else {
+                        reject(res.toJSON());
+                    }
+                });
+            });
+}
 
 
 /**
