@@ -123,20 +123,21 @@ app.get('/register/hpalist/:hetu', function (request, response) {
 /**
  * Resource for handling authorization REST requests.
  *
- * Usage: https://localhost:8904/rest/authorization/100871-998D?principal=010403A998U
+ * Usage: On behalf of a minor: https://localhost:8904/rest/authorization/100871-998D/010403A998U
+ * Usage: On behalf of an adult: https://localhost:8904/rest/authorization/100871-998D/010403A998U?issue=http://valtuusrekisteri.suomi.fi/Terveydenhuollon_asioiden_hoito
  *
- * TODO: issue parameter handling
  */
-app.get('/rest/authorization/:delegate', function (request, response) {
+app.get('/rest/authorization/:delegate/:principal', function (request, response) {
     console.log("/rest/authorization/");
     requestID = uuidv4();
     console.log("RequestID: " + requestID);
     var delegateId = request.params.delegate;
-    var principalId = request.query.principal;
+    var principalId = request.params.principal;
+    var issueId = request.query.issue;
     console.log("Delegate: " + delegateId);
     console.log("Principal: " + principalId);
-
-    getRestAuthorization(delegateId, principalId, "").
+    console.log("Issue: " + issueId);
+    getRestAuthorization(delegateId, principalId, issueId).
     then(function (data) {
         response.status(200).send(data);
     }).
@@ -147,12 +148,11 @@ app.get('/rest/authorization/:delegate', function (request, response) {
 
 });
 
-function getRestAuthorization(delegateId, principalId, issue) {
+function getRestAuthorization(delegateId, principalId, issueId) {
     return new Promise(function (resolve, reject) {
         var resourceUrl = '/service/rest/hpa/authorization/' + config.clientId + '/' + delegateId + '/' + principalId + '?requestId=' + requestID;
-        var issue = '';
-            if(issue && issue !== '') {
-                resourceUrl += "&issues="+issue;
+            if(issueId && issueId !== '') {
+                resourceUrl += "&issue="+encodeURIComponent(issueId);
             }
             var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.restApiKey, resourceUrl);
             console.log('Get ' + resourceUrl);
