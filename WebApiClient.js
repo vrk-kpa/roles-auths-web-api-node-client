@@ -124,8 +124,7 @@ app.get('/register/hpalist/:hetu', function (request, response) {
  * Resource for handling authorization REST requests.
  *
  * Usage: On behalf of a minor: https://localhost:8904/rest/authorization/100871-998D/010403A998U
- * Usage: On behalf of an adult: https://localhost:8904/rest/authorization/100871-998D/010403A998U?issue=http://valtuusrekisteri.suomi.fi/Terveydenhuollon_asioiden_hoito
- *
+ * Usage: On behalf of an adult: https://localhost:8904/rest/authorization/091099-998L/241198-998U?issue=http://valtuusrekisteri.suomi.fi/terveydenhuollon_asioiden_hoito
  *
  */
 app.get('/rest/authorization/:delegate/:principal', function (request, response) {
