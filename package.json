@@ -8,9 +8,9 @@
   },
   "dependencies": {
     "cookie-parser": "^1.4.3",
-    "express": "^4.10.8",
-    "moment": "2.11.2",
-    "request": "^2.79.0"
+    "express": "^4.17.1",
+    "moment": "^2.19.3",
+    "request": "^2.88.2"
   },
   "devDependencies": {
     "sonar-scanner": "^3.0.3"

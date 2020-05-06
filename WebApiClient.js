@@ -62,7 +62,11 @@ function init() {
     config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
 
     server.listen(config.port, function () {
-        console.log('\nBrowse to:\n\n' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]' + ' or\n' + config.clientBaseUrl + '/register/hpalist/[TEST_HETU]' + ' or\n' + config.clientBaseUrl + '/register/hpa/[TEST_HETU]?askIssue=true' + ' or\n' + config.clientBaseUrl + '/register/ypa/[TEST_HETU]'+ ' or\n' + config.clientBaseUrl + '/rest/authorization/[DELEGATE_HETU]/[PRINCIPAL_HETU]');
+        console.log('\nBrowse to:\n\n' + config.clientBaseUrl + '/register/hpa/[PERSON_ID]'+ ' or\n'
+          + config.clientBaseUrl + '/register/hpalist/[PERSON_ID]' + ' or\n' + config.clientBaseUrl
+          + '/register/hpa/[PERSON_ID]?askIssue=true' + ' or\n' + config.clientBaseUrl
+          + '/register/ypa/[PERSON_ID]'+ ' or\n' + config.clientBaseUrl
+          + '/rest/authorization/[DELEGATE_PERSON_ID]/[PRINCIPAL_PERSON_ID]');
     });
 }
 
@@ -74,18 +78,17 @@ function init() {
  * If query parameter ?askIssue=true is added to the URL, issue URI will be asked after returning
  * from the selection UI.
  * 
- * :hetu is SSN of the delegate. That is, the authenticated user.
+ * :personId is for example SSN of the delegate. That is, the authenticated user.
  */
-app.get('/register/hpa/:hetu', function (request, response) {
-    // test hetu 010180-9026
-    console.log("/register/hpa/:hetu");
+app.get('/register/hpa/:personId', function (request, response) {
+    console.log("/register/hpa/:personId");
     var callbackUri = config.callbackUriHpa;
     requestID = uuidv4();
     console.log("RequestID: " + requestID);
     if(request.query.askIssue && request.query.askIssue === 'true') {
         callbackUri += "?askIssue=true";
     }
-    register('hpa', request.params.hetu, callbackUri, response).
+    register('hpa', request.params.personId, callbackUri, response).
         then(redirectToWebApiSelection).
         catch(function (reason) {
             console.error(reason);
@@ -98,11 +101,10 @@ app.get('/register/hpa/:hetu', function (request, response) {
  * First, function makes backend call to Web API to register the delegate. Then, it redirects
  * user's browser to the Web API selection UI.
  *
- * :hetu is SSN of the delegate. That is, the authenticated user.
+ * :personId is for example SSN of the delegate. That is, the authenticated user.
  */
-app.get('/register/hpalist/:hetu', function (request, response) {
-    // test hetu 010180-9026
-    console.log("/register/hpalist/:hetu");
+app.get('/register/hpalist/:personId', function (request, response) {
+    console.log("/register/hpalist/:personId");
     var callbackUri = config.callbackUriHpalist;
     requestID = uuidv4();
     console.log("RequestID: " + requestID);
@@ -110,7 +112,7 @@ app.get('/register/hpalist/:hetu', function (request, response) {
         callbackUri = config.callbackUriHpalist;
         callbackUri += "?getList=true";
     }
-    register('hpa', request.params.hetu, callbackUri, response).
+    register('hpa', request.params.personId, callbackUri, response).
     then(redirectToWebApiSelection).
     catch(function (reason) {
         console.error(reason);
@@ -264,13 +266,12 @@ app.get('/callback/hpalist', function (request, response) {
  * First, function makes backend call to Web API to register the delegate. Then, it redirects
  * user's browser to the Web API selection UI.
  * 
- * :hetu is SSN of the delegate. That is, the authenticated user.
+ * :personId is for example SSN of the delegate. That is, the authenticated user.
  */
-app.get('/register/ypa/:hetu', function (request, response) {
-    // test hetu 010180-9026
+app.get('/register/ypa/:personId', function (request, response) {
     requestID = uuidv4();
     console.log("RequestID: " + requestID);
-    register('ypa', request.params.hetu, config.callbackUriYpa, response).
+    register('ypa', request.params.personId, config.callbackUriYpa, response).
         then(redirectToWebApiSelection).
         catch(function (reason) {
             console.error(reason);
@@ -299,15 +300,15 @@ app.get('/callback/ypa', function (request, response) {
  * Function to handle registeration to the Web API backend.
  * 
  * @param {string} mode - Eather `HPA` or `YPA`.
- * @param {string} delegateHetu - SSN of the delegate.
+ * @param {string} delegatePersonId - person id of the delegate.
  * @param {string} callbackUri - The location where the user's browser is redirected after the selection of principal.
  * @param {Object} response - Response to the browser.
  * @return {Promise}
  */
-function register(mode, delegateHetu, callbackUri, response) {
+function register(mode, delegatePersonId, callbackUri, response) {
     return new Promise(function (resolve, reject) {
         //Registering WEB API session
-        var registerPath = '/service/' + mode + '/user/register/' + config.clientId + '/' + delegateHetu + '?requestId=' + requestID + '&endUserId=nodeEndUser';
+        var registerPath = '/service/' + mode + '/user/register/' + config.clientId + '/' + delegatePersonId + '?requestId=' + requestID + '&endUserId=nodeEndUser';
 
         // Adding X-AsiointivaltuudetAuthorization header
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, registerPath);
@@ -620,7 +621,8 @@ function getAuthorizationlist(webApiSessionId, accessToken, principal, issue) {
  */
 function getRoles(args) {
     return new Promise(function (resolve, reject) {
-        var resourceUrl = '/service/ypa/api/organizationRoles/' + args.webApiSessionId + '?requestId=' + requestID + '&endUserId=nodeEndUser';
+        var resourceUrl = '/service/ypa/api/organizationRoles/' + args.webApiSessionId + '?requestId=' + requestID
+          + '&endUserId=nodeEndUser';
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
