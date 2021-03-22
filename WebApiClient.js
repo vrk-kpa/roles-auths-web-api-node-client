@@ -28,7 +28,8 @@ var https = require('https');
 var express = require('express');
 var cookieParser = require('cookie-parser');
 var headerUtils = require('./lib/HeaderUtils.js');
-const uuidv4 = require('uuid/v4');
+var uuidv4 = require('uuid/v4');
+var jwt = require('jsonwebtoken')
 var requestID = "";
 
 var app = express();
@@ -59,14 +60,17 @@ function init() {
     }
     config.callbackUriHpa = encodeURI(config.clientBaseUrl + '/callback/hpa');
     config.callbackUriHpalist = encodeURI(config.clientBaseUrl + '/callback/hpalist');
+    config.callbackUriHpalistJwt = encodeURI(config.clientBaseUrl + '/callback/hpalist/jwt/');
     config.callbackUriYpa = encodeURI(config.clientBaseUrl + '/callback/ypa');
 
     server.listen(config.port, function () {
-        console.log('\nBrowse to:\n\n' + config.clientBaseUrl + '/register/hpa/[PERSON_ID]'+ ' or\n'
-          + config.clientBaseUrl + '/register/hpalist/[PERSON_ID]' + ' or\n' + config.clientBaseUrl
-          + '/register/hpa/[PERSON_ID]?askIssue=true' + ' or\n' + config.clientBaseUrl
-          + '/register/ypa/[PERSON_ID]'+ ' or\n' + config.clientBaseUrl
-          + '/rest/authorization/[DELEGATE_PERSON_ID]/[PRINCIPAL_PERSON_ID]');
+        console.log('\nBrowse to:\n\n' 
+          + config.clientBaseUrl + '/register/hpa/[PERSON_ID]'+ ' or\n'
+          + config.clientBaseUrl + '/register/hpalist/[PERSON_ID]' + ' or\n' 
+          + config.clientBaseUrl + '/register/hpalist/jwt/[PERSON_ID]' + ' or\n' 
+          + config.clientBaseUrl + '/register/hpa/[PERSON_ID]?askIssue=true' + ' or\n' 
+          + config.clientBaseUrl + '/register/ypa/[PERSON_ID]'+ ' or\n' 
+          + config.clientBaseUrl + '/rest/authorization/[DELEGATE_PERSON_ID]/[PRINCIPAL_PERSON_ID]');
     });
 }
 
@@ -120,14 +124,28 @@ app.get('/register/hpalist/:personId', function (request, response) {
     });
 });
 
-
+app.get('/register/hpalist/jwt/:personId', function (request, response) {
+    console.log("/register/hpalist/jwt/:personId");
+    var callbackUri = config.callbackUriHpalistJwt;
+    requestID = uuidv4();
+    console.log("RequestID: " + requestID);
+    if(request.query.getList && request.query.getList === 'true') {
+        callbackUri = config.callbackUriHpalistJwt
+        callbackUri += "?getList=true";
+    }
+    register('hpa', request.params.personId, callbackUri, response).
+    then(redirectToWebApiSelection).
+    catch(function (reason) {
+        console.error(reason);
+        response.status(500).send("Failed to register HPA session.");
+    });
+});
 
 /**
  * Resource for handling authorization REST requests.
  *
  * Usage: On behalf of a minor: https://localhost:8904/rest/authorization/100871-998D/010403A998U
  * Usage: On behalf of an adult: https://localhost:8904/rest/authorization/091099-998L/241198-998U?issue=http://valtuusrekisteri.suomi.fi/terveydenhuollon_asioiden_hoito
- *
  */
 app.get('/rest/authorization/:delegate/:principal', function (request, response) {
     console.log("/rest/authorization/");
@@ -260,6 +278,27 @@ app.get('/callback/hpalist', function (request, response) {
 
 });
 
+app.get('/callback/hpalist/jwt', function (request, response) {
+    console.log("/callback/hpalist/jwt");
+    var urlParts = url.parse(request.url, true);
+    var callbackUri = config.callbackUriHpalistJwt;
+    var issue = '';
+    changeCodeToToken(request.cookies.webApiSessionId, urlParts.query.code, issue, callbackUri).
+        then(getDelegate).
+        then(getAuthorizationslistJwt).
+        then(function (authorizations) {
+            var uriDecoded = decodeURIComponent(authorizations);
+            var decoded = jwt.decode(uriDecoded, {complete: true});
+            console.log('authorizations=%s', authorizations);
+            console.log('decoded.header=%s', JSON.stringify(decoded.header));
+            console.log('decoded.payload=%s', JSON.stringify(decoded.payload));
+            response.status(200).send(authorizations);
+        }).catch(function (reason) {
+            console.error(reason);
+            response.status(500).send("Failed to get authorization.");
+        });
+
+});
 
 /**
  * Resource for registering Web API YPA session for a user who will be acting as the delegate. 
@@ -544,6 +583,7 @@ function getAuthorization(webApiSessionId, accessToken, principal, issue) {
  * @return {Promise}
  */
 function getAuthorizationslist(authArgs) {
+    console.log('getAuthorizationslist(): authArgs = %s', JSON.stringify(authArgs))
     return new Promise(function (resolve, reject) {
         var promises = [];
         for (var i = 0; i < authArgs.principals.length; i++) {
@@ -568,6 +608,34 @@ function getAuthorizationslist(authArgs) {
         });
     });
 }
+
+function getAuthorizationslistJwt(authArgs) {
+    console.log('getAuthorizationslistJwt(): authArgs = %s', JSON.stringify(authArgs))
+    return new Promise(function (resolve, reject) {
+        var promises = [];
+        for (var i = 0; i < authArgs.principals.length; i++) {
+            promises.push(getAuthorizationlistJwt(authArgs.webApiSessionId, authArgs.accessToken, authArgs.principals[i], authArgs.issue || ''));
+        }
+        Promise.all(promises).then(function (values) {
+            var authorizations = [];
+            try {
+                for (var j = 0; j < values.length; j++) {
+                    if (values[j].errorMessage) {
+                        reject(values[j].errorMessage);
+                    }
+                    authorizations.push(values[j]);
+                }
+                resolve(authorizations);
+            } catch (e) {
+                console.error("Exception thrown while parsing response body: " + body);
+                reject(e.stack);
+            }
+        }).catch(function (reason) {
+            reject(reason);
+        });
+    });
+}
+
 /**
  * Makes an authorizationlist call to the Web API backend.
  *
@@ -600,6 +668,43 @@ function getAuthorizationlist(webApiSessionId, accessToken, principal, issue) {
                     var data = JSON.parse(body);
                     data.principal = principal;
                     resolve(data);
+                } catch (e) {
+                    console.error("Exception thrown while parsing response body: " + body);
+                    reject(e.stack);
+                }
+            } else {
+                reject(res.toJSON());
+            }
+        });
+    });
+}
+
+function getAuthorizationlistJwt(webApiSessionId, accessToken, principal, issue) {
+    return new Promise(function (resolve, reject) {
+        var resourceUrl = '/service/hpa/api/authorizationlist/jwt/' + webApiSessionId + '/' + principal.personId + '?requestId=' + requestID + '&endUserId=nodeEndUser';
+        if(issue && issue !== '') {
+            resourceUrl += "&issues="+issue;
+        }
+        var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
+        console.log('GET ' + resourceUrl);
+        var options = {
+            method: 'GET',
+            url: config.webApiUrl + resourceUrl,
+            headers: {
+                'Authorization': 'Bearer ' + accessToken,
+                'X-AsiointivaltuudetAuthorization': checksumHeaderValue
+            }
+        };
+
+        request(options, function (error, res, body) {
+            if (!error && res.statusCode === 200) {
+                try {
+                    /*
+                    var data = JSON.parse(body);
+                    data.principal = principal;
+                    resolve(data);
+                    */
+                   resolve(body);
                 } catch (e) {
                     console.error("Exception thrown while parsing response body: " + body);
                     reject(e.stack);
