@@ -9,7 +9,7 @@ Save your id and secrets to /config.json. Set also other properties.
 ```
 {
     "hostname": "localhost",
-    "port": 8904,
+    "port": [MY_ALLOWED_REDIRECT_PORT],
     "webApiUrl": "http://localhost:8102",
     "clientId": "[MY_CLIENT_ID]",
     "clientSecret": "[MY_CLIENT_SECRET]",
