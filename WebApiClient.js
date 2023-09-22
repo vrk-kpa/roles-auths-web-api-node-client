@@ -20,7 +20,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-var request = require('request');
+var axios = require('axios');
 var url = require('url');
 var fs = require('fs');
 var http = require('http');
@@ -28,7 +28,7 @@ var https = require('https');
 var express = require('express');
 var cookieParser = require('cookie-parser');
 var headerUtils = require('./lib/HeaderUtils.js');
-var uuidv4 = require('uuid/v4');
+var uuid = require('uuid');
 var jwt = require('jsonwebtoken')
 var requestID = "";
 
@@ -87,7 +87,7 @@ function init() {
 app.get('/register/hpa/:personId', function (request, response) {
     console.log("/register/hpa/:personId");
     var callbackUri = config.callbackUriHpa;
-    requestID = uuidv4();
+    requestID = uuid.v4();
     console.log("RequestID: " + requestID);
     if(request.query.askIssue && request.query.askIssue === 'true') {
         callbackUri += "?askIssue=true";
@@ -110,7 +110,7 @@ app.get('/register/hpa/:personId', function (request, response) {
 app.get('/register/hpalist/:personId', function (request, response) {
     console.log("/register/hpalist/:personId");
     var callbackUri = config.callbackUriHpalist;
-    requestID = uuidv4();
+    requestID = uuid.v4();
     console.log("RequestID: " + requestID);
     if(request.query.getList && request.query.getList === 'true') {
         callbackUri = config.callbackUriHpalist;
@@ -127,7 +127,7 @@ app.get('/register/hpalist/:personId', function (request, response) {
 app.get('/register/hpalist/jwt/:personId', function (request, response) {
     console.log("/register/hpalist/jwt/:personId");
     var callbackUri = config.callbackUriHpalistJwt;
-    requestID = uuidv4();
+    requestID = uuid.v4();
     console.log("RequestID: " + requestID);
     if(request.query.getList && request.query.getList === 'true') {
         callbackUri = config.callbackUriHpalistJwt
@@ -149,7 +149,7 @@ app.get('/register/hpalist/jwt/:personId', function (request, response) {
  */
 app.get('/rest/authorization/:delegate/:principal', function (request, response) {
     console.log("/rest/authorization/");
-    requestID = uuidv4();
+    requestID = uuid.v4();
     console.log("RequestID: " + requestID);
     var delegateId = request.params.delegate;
     var principalId = request.params.principal;
@@ -171,35 +171,31 @@ app.get('/rest/authorization/:delegate/:principal', function (request, response)
 function getRestAuthorization(delegateId, principalId, issueId) {
     return new Promise(function (resolve, reject) {
         var resourceUrl = '/service/rest/hpa/authorization/' + config.clientId + '/' + delegateId + '/' + principalId + '?requestId=' + requestID;
-            if(issueId && issueId !== '') {
-                resourceUrl += "&issue="+encodeURIComponent(issueId);
-            }
-            var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.restApiKey, resourceUrl);
-            console.log('Get ' + resourceUrl);
-            var options = {
-                method: 'GET',
-                url: config.webApiUrl + resourceUrl,
-                headers: {
-                    'X-AsiointivaltuudetAuthorization': checksumHeaderValue,
-                    'X-userId': 'rova-demo-user'
-                    }
-                };
+        if (issueId && issueId !== '') {
+            resourceUrl += "&issue=" + encodeURIComponent(issueId);
+        }
+        var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.restApiKey, resourceUrl);
+        console.log('Get ' + resourceUrl);
+        var options = {
+            method: 'get',
+            url: config.webApiUrl + resourceUrl,
+            headers: {
+                'X-AsiointivaltuudetAuthorization': checksumHeaderValue,
+                'X-userId': 'rova-demo-user'
+                },
+            validateStatus: () => true
+        };
 
-                request(options, function (error, res, body) {
-                    if (!error && res.statusCode === 200) {
-                        try {
-                            var data = JSON.parse(body);
-                            console.log("Response from " + resourceUrl + ': ' + body);
-                            resolve(data);
-                        } catch (e) {
-                            console.error("Exception thrown while parsing response body: " + body);
-                            reject(e.stack);
-                        }
-                    } else {
-                        reject(res.toJSON());
-                    }
-                });
-            });
+        axios(options).then(function (res) {
+            if (res.status === 200) {
+                var data = res.data;
+                console.log("Response from " + resourceUrl + ': ' + JSON.stringify(data));
+                resolve(data);
+            } else {
+                reject(res.data);
+            }
+        });
+    });
 }
 
 
@@ -308,7 +304,7 @@ app.get('/callback/hpalist/jwt', function (request, response) {
  * :personId is for example SSN of the delegate. That is, the authenticated user.
  */
 app.get('/register/ypa/:personId', function (request, response) {
-    requestID = uuidv4();
+    requestID = uuid.v4();
     console.log("RequestID: " + requestID);
     register('ypa', request.params.personId, config.callbackUriYpa, response).
         then(redirectToWebApiSelection).
@@ -353,26 +349,27 @@ function register(mode, delegatePersonId, callbackUri, response) {
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, registerPath);
 
         var options = {
-            method: 'GET',
+            method: 'get',
             url: config.webApiUrl + registerPath,
             headers: {
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-            }
+            },
+            validateStatus: () => true
         };
 
-        request(options, function (error, res, body) {
-            if (!error && res.statusCode === 200) {
+        axios(options).then(function(res) {
+            if (res.status === 200) {
                 try {
-                    var data = JSON.parse(body);
+                    var data = res.data;
                     //Don't do this in production. Don't expose webApiSessionId to the user.
                     response.cookie("webApiSessionId", data.sessionId);
                     resolve({ userId: data.userId, response: response, callbackUri: callbackUri });
                 } catch (e) {
-                    console.error("Exception thrown while parsing response body: " + body);
+                    console.error("Exception thrown while accessing response data: " + JSON.stringify(res.data));
                     reject(e.stack);
                 }
             } else {
-                reject(res.toJSON());
+                reject(res.data);
             }
         });
 
@@ -413,16 +410,18 @@ function changeCodeToToken(webApiSessionId, code, issue, callbackUri) {
         function(resolve, reject) {
             console.log('Exchanging authorization code to access token...');
             var options = {
-                method: 'POST',
+                method: 'post',
                 url: config.webApiUrl + '/oauth/token?code=' + code + '&grant_type=authorization_code&redirect_uri=' + callbackUri,
                 headers: {
                     'Authorization': headerUtils.basicAuthorizationHeader(config.clientId, config.apiOauthSecret)
-                }
+                },
+                validateStatus: () => true
             };
-            request(options, function (error, res, body) {
-                if (!error && res.statusCode === 200) {
+
+            axios(options).then(function (res) {
+                if (res.status === 200) {
                     try {
-                        var data = JSON.parse(body);
+                        var data = res.data
                         //{"access_token":"12ea9653-814b-4b1f-a877-4aeecd92d2ba","token_type":"bearer","refresh_token":"77543b3a-8823-49ea-929e-a9b6b63a9403","expires_in":599,"scope":"read write trust"}
                         var args = {};
                         args.accessToken = data.access_token;
@@ -432,11 +431,11 @@ function changeCodeToToken(webApiSessionId, code, issue, callbackUri) {
                         }
                         resolve(args);
                     } catch (e) {
-                        console.error("Exception thrown while parsing response body: " + body);
+                        console.error("Exception thrown while accessing response data: " + JSON.stringify(res.data));
                         reject(e.stack);
                     }
                 } else {
-                    reject(res.toJSON());
+                    reject(res.data);
                 }
             });
         }
@@ -457,32 +456,28 @@ function getDelegate(args) {
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
-            method: 'GET',
+            method: 'get',
             url: config.webApiUrl + resourceUrl,
             headers: {
                 'Authorization': 'Bearer ' + args.accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-            }
+            },
+            validateStatus: () => true
         };
 
-        request(options, function (error, res, body) {
-            if (!error && res.statusCode === 200) {
-                try {
-                    var principals = JSON.parse(body);
-                    console.log("Response from " + resourceUrl + ': ' + body);
-                    var result = {
-                        webApiSessionId: args.webApiSessionId,
-                        accessToken: args.accessToken,
-                        issue: args.issue,
-                        principals: principals
-                    };
-                    resolve(result);
-                } catch (e) {
-                    console.error("Exception thrown while parsing response body: " + body);
-                    reject(e.stack);
-                }
+        axios(options).then(function (res) {
+            if (res.status === 200) {
+                var principals = res.data;
+                console.log("Response from " + resourceUrl + ': ' + JSON.stringify(principals));
+                var result = {
+                    webApiSessionId: args.webApiSessionId,
+                    accessToken: args.accessToken,
+                    issue: args.issue,
+                    principals: principals
+                };
+                resolve(result);
             } else {
-                reject(res.toJSON());
+                reject(res.data);
             }
         });
     });
@@ -517,7 +512,6 @@ function getAuthorizations(authArgs) {
                 }
                 resolve(authorizations);
             } catch (e) {
-                console.error("Exception thrown while parsing response body: " + body);
                 reject(e.stack);
             }
         }).catch(function (reason) {
@@ -544,26 +538,27 @@ function getAuthorization(webApiSessionId, accessToken, principal, issue) {
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
-            method: 'GET',
+            method: 'get',
             url: config.webApiUrl + resourceUrl,
             headers: {
                 'Authorization': 'Bearer ' + accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-            }
+            },
+            validateStatus: () => true
         };
 
-        request(options, function (error, res, body) {
-            if (!error && res.statusCode === 200) {
+        axios(options).then(function (res) {
+            if (res.status === 200) {
                 try {
-                    var data = JSON.parse(body);
+                    var data = res.data;
                     data.principal = principal;
                     resolve(data);
                 } catch (e) {
-                    console.error("Exception thrown while parsing response body: " + body);
+                    console.error("Exception thrown while accessing response data: " + JSON.stringify(res.data));
                     reject(e.stack);
                 }
             } else {
-                reject(res.toJSON());
+                reject(res.data);
             }
         });
     });
@@ -600,7 +595,6 @@ function getAuthorizationslist(authArgs) {
                 }
                 resolve(authorizations);
             } catch (e) {
-                console.error("Exception thrown while parsing response body: " + body);
                 reject(e.stack);
             }
         }).catch(function (reason) {
@@ -627,7 +621,6 @@ function getAuthorizationslistJwt(authArgs) {
                 }
                 resolve(authorizations);
             } catch (e) {
-                console.error("Exception thrown while parsing response body: " + body);
                 reject(e.stack);
             }
         }).catch(function (reason) {
@@ -654,26 +647,27 @@ function getAuthorizationlist(webApiSessionId, accessToken, principal, issue) {
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
-            method: 'GET',
+            method: 'get',
             url: config.webApiUrl + resourceUrl,
             headers: {
                 'Authorization': 'Bearer ' + accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-            }
+            },
+            validateStatus: () => true
         };
 
-        request(options, function (error, res, body) {
-            if (!error && res.statusCode === 200) {
+        axios(options).then(function (res) {
+            if (res.status === 200) {
                 try {
-                    var data = JSON.parse(body);
+                    var data = res.data;
                     data.principal = principal;
                     resolve(data);
                 } catch (e) {
-                    console.error("Exception thrown while parsing response body: " + body);
+                    console.error("Exception thrown while accessing response data: " + JSON.stringify(res.data));
                     reject(e.stack);
                 }
             } else {
-                reject(res.toJSON());
+                reject(res.data);
             }
         });
     });
@@ -688,29 +682,20 @@ function getAuthorizationlistJwt(webApiSessionId, accessToken, principal, issue)
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('GET ' + resourceUrl);
         var options = {
-            method: 'GET',
+            method: 'get',
             url: config.webApiUrl + resourceUrl,
             headers: {
                 'Authorization': 'Bearer ' + accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-            }
+            },
+            validateStatus: () => true
         };
 
-        request(options, function (error, res, body) {
-            if (!error && res.statusCode === 200) {
-                try {
-                    /*
-                    var data = JSON.parse(body);
-                    data.principal = principal;
-                    resolve(data);
-                    */
-                   resolve(body);
-                } catch (e) {
-                    console.error("Exception thrown while parsing response body: " + body);
-                    reject(e.stack);
-                }
+        axios(options).then(function (res) {
+            if (res.status === 200) {
+                resolve(res.data);
             } else {
-                reject(res.toJSON());
+                reject(res.data);
             }
         });
     });
@@ -731,25 +716,20 @@ function getRoles(args) {
         var checksumHeaderValue = headerUtils.xAuthorizationHeader(config.clientId, config.clientSecret, resourceUrl);
         console.log('Get ' + resourceUrl);
         var options = {
-            method: 'GET',
+            method: 'get',
             url: config.webApiUrl + resourceUrl,
             headers: {
                 'Authorization': 'Bearer ' + args.accessToken,
                 'X-AsiointivaltuudetAuthorization': checksumHeaderValue
-            }
+            },
+            validateStatus: () => true
         };
 
-        request(options, function (error, res, body) {
-            if (!error && res.statusCode === 200) {
-                try {
-                    var data = JSON.parse(body);
-                    resolve(data);
-                } catch (e) {
-                    console.error("Exception thrown while parsing response body: " + body);
-                    reject(e.stack);
-                }
+        axios(options).then(function (res) {
+            if (res.status === 200) {
+                resolve(res.data);
             } else {
-                reject(res.toJSON());
+                reject(res.data);
             }
         });
     });

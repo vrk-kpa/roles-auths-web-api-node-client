@@ -1,10 +1,10 @@
 # roles-auths-web-api-node-client
 
-Client for Asiointivaltuudet Web API made with Node.js.
+Client for Suomi.fi-Valtuudet Web API made with Node.js.
 
 How to run
 ----------
-Save your id and secrets to /config.json. Set also other properties.
+Save your id and secrets to ./config.json. Set also other properties.
 
 ```
 {
