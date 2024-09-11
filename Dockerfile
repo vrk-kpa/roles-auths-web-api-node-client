@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 ENV deploy_dir /data00/deploy/
 RUN mkdir -p ${deploy_dir}
