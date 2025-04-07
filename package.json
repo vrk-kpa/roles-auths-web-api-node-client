@@ -7,15 +7,15 @@
     "url": "git+https://github.com/vrk-kpa/roles-auths-web-api-node-client.git"
   },
   "dependencies": {
-    "cookie-parser": "^1.4.6",
-    "express": "^4.17.1",
+    "axios": "^1.8.4",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "moment": "^2.19.3",
-    "uuid": "^9.0.1",
-    "axios": "^1.5.0"
+    "moment": "^2.30.1",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "sonar-scanner": "^3.0.3"
+    "sonar-scanner": "^3.1.0"
   },
   "scripts": {
     "sonar-scanner": "node_modules/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=roles-auths-web-api-node-client -Dsonar.sources=."
